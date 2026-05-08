@@ -163,8 +163,10 @@ happen ahead of `1.0`. The schema (`dev-report`) stays at
 
 ## Minimum supported Rust version
 
-`1.75` — pinned in `Cargo.toml` via `rust-version` and verified by
-the MSRV job in CI.
+`1.85` — pinned in `Cargo.toml` via `rust-version` and verified by
+the MSRV job in CI. (Bumped from 1.75 to match sibling sub-crate
+MSRVs after their transitive deps required Rust 1.81+ and
+`edition2024`.)
 
 ## License
 
