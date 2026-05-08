@@ -100,7 +100,7 @@ jobs:
       - run: cargo doc --all-features --no-deps
 
   msrv:
-    name: MSRV (Rust 1.75)
+    name: MSRV (Rust 1.85)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -112,6 +112,6 @@ jobs:
           git clone --depth 1 https://github.com/jamesgober/dev-async.git ../dev-async
           git clone --depth 1 https://github.com/jamesgober/dev-stress.git ../dev-stress
           git clone --depth 1 https://github.com/jamesgober/dev-chaos.git ../dev-chaos
-      - uses: dtolnay/rust-toolchain@1.75
+      - uses: dtolnay/rust-toolchain@1.85
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --all-features --verbose
