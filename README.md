@@ -6,8 +6,9 @@
 
 <p align="center">
     <a href="https://crates.io/crates/dev-tools"><img alt="crates.io" src="https://img.shields.io/crates/v/dev-tools.svg"></a>
+    <a href="https://crates.io/crates/dev-tools"><img alt="downloads" src="https://img.shields.io/crates/d/dev-tools.svg"></a>
+    <a href="https://github.com/jamesgober/dev-tools/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jamesgober/dev-tools/actions/workflows/ci.yml/badge.svg"></a>
     <a href="https://docs.rs/dev-tools"><img alt="docs.rs" src="https://docs.rs/dev-tools/badge.svg"></a>
-    <a href="https://github.com/jamesgober/dev-tools/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue.svg"></a>
 </p>
 
 <p align="center">
@@ -36,7 +37,7 @@ about a Rust project:
 
 ```toml
 [dependencies]
-dev-tools = "0.1"
+dev-tools = "0.9"
 ```
 
 Default features include `fixtures`, `bench`, and the always-on
@@ -67,6 +68,45 @@ r.finish();
 println!("{}", r.to_json().unwrap());
 ```
 
+## Combining producers with `full_run!`
+
+The `full_run!` macro turns a list of `dev_report::Producer` values
+into a `MultiReport` — one entry per producer, all sharing the same
+subject and version.
+
+```rust
+use dev_tools::{full_run, fixtures, bench, report};
+
+let fixture = fixtures::FixtureProducer::new(
+    "temp_project_lifecycle",
+    "0.1.0",
+    || {
+        let _p = fixtures::TempProject::new()
+            .with_file("README.md", "hi")
+            .build()?;
+        Ok(())
+    },
+);
+
+let benchmark = bench::BenchProducer::new(
+    || {
+        let mut b = bench::Benchmark::new("noop");
+        for _ in 0..100 { b.iter(|| std::hint::black_box(1 + 1)); }
+        b.finish()
+    },
+    "0.1.0",
+    None,
+    bench::Threshold::regression_pct(20.0),
+);
+
+let multi = full_run!("my-crate", "0.1.0"; fixture, benchmark);
+println!("{}", multi.to_json().unwrap());
+```
+
+The macro is pure composition: zero new types, zero external
+dependencies. It just calls `Producer::produce()` on each argument
+and pushes into a `dev_report::MultiReport`.
+
 ## Features
 
 | Feature | Default | What it brings in |
@@ -84,19 +124,19 @@ println!("{}", r.to_json().unwrap());
 Async-heavy project:
 
 ```toml
-dev-tools = { version = "0.1", features = ["async"] }
+dev-tools = { version = "0.9", features = ["async"] }
 ```
 
 Kitchen sink (CI verification rigs, AI agents):
 
 ```toml
-dev-tools = { version = "0.1", features = ["full"] }
+dev-tools = { version = "0.9", features = ["full"] }
 ```
 
 Schema-only (lightest possible):
 
 ```toml
-dev-tools = { version = "0.1", default-features = false }
+dev-tools = { version = "0.9", default-features = false }
 ```
 
 ## Why a verification suite
@@ -116,9 +156,15 @@ own work before a human has to trust it.
 
 ## Status
 
-`v0.1.x` is a name-claim release across all sub-crates. APIs WILL
-expand significantly in `0.2.x` and beyond. Production use is
-discouraged until `1.0`.
+`v0.9.x` is the pre-1.0 stabilization line across all sub-crates.
+APIs are expected to be near-final; minor adjustments may still
+happen ahead of `1.0`. The schema (`dev-report`) stays at
+`schema_version = 1` through this line.
+
+## Minimum supported Rust version
+
+`1.75` — pinned in `Cargo.toml` via `rust-version` and verified by
+the MSRV job in CI.
 
 ## License
 

@@ -10,9 +10,9 @@
 //!
 //! By default, you get:
 //!
-//! - [`report`]: structured machine-readable verdicts (always enabled).
-//! - [`fixtures`]: deterministic test environments.
-//! - [`bench`]: performance measurement and regression detection.
+//! - [`mod@report`]: structured machine-readable verdicts (always enabled).
+//! - [`mod@fixtures`]: deterministic test environments.
+//! - [`mod@bench`]: performance measurement and regression detection.
 //!
 //! ## Opt-in features
 //!
@@ -27,7 +27,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! dev-tools = "0.1"
+//! dev-tools = "0.9"
 //! ```
 //!
 //! ```rust
@@ -78,6 +78,54 @@ pub use dev_stress as stress;
 #[cfg_attr(docsrs, doc(cfg(feature = "chaos")))]
 pub use dev_chaos as chaos;
 
+/// Combine multiple `dev_report::Producer` results into a single
+/// `MultiReport` keyed by `subject`/`version`.
+///
+/// Pure composition: no new types, no new logic. Each producer is
+/// invoked once via `Producer::produce()` and pushed into the
+/// returned [`dev_report::MultiReport`].
+///
+/// # Example
+///
+/// ```
+/// use dev_tools::full_run;
+/// use dev_tools::report::{CheckResult, Producer, Report, Verdict};
+///
+/// struct A;
+/// impl Producer for A {
+///     fn produce(&self) -> Report {
+///         let mut r = Report::new("crate", "0.1.0").with_producer("a");
+///         r.push(CheckResult::pass("ok"));
+///         r.finish();
+///         r
+///     }
+/// }
+/// struct B;
+/// impl Producer for B {
+///     fn produce(&self) -> Report {
+///         let mut r = Report::new("crate", "0.1.0").with_producer("b");
+///         r.push(CheckResult::pass("ok"));
+///         r.finish();
+///         r
+///     }
+/// }
+///
+/// let multi = full_run!("crate", "0.1.0"; A, B);
+/// assert_eq!(multi.reports.len(), 2);
+/// assert_eq!(multi.overall_verdict(), Verdict::Pass);
+/// ```
+#[macro_export]
+macro_rules! full_run {
+    ($subject:expr, $version:expr; $($producer:expr),* $(,)?) => {{
+        let mut multi = $crate::report::MultiReport::new($subject, $version);
+        $(
+            multi.push(<_ as $crate::report::Producer>::produce(&$producer));
+        )*
+        multi.finish();
+        multi
+    }};
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -98,5 +146,80 @@ mod tests {
     #[test]
     fn bench_module_is_available_with_feature() {
         let _ = bench::Benchmark::new("x");
+    }
+
+    #[test]
+    fn full_run_combines_zero_producers() {
+        let multi = full_run!("crate", "0.1.0";);
+        assert_eq!(multi.reports.len(), 0);
+        assert_eq!(multi.overall_verdict(), report::Verdict::Skip);
+    }
+
+    #[test]
+    fn full_run_combines_two_producers() {
+        struct OkProducer(&'static str);
+        impl report::Producer for OkProducer {
+            fn produce(&self) -> report::Report {
+                let mut r = report::Report::new("c", "0.1.0").with_producer(self.0);
+                r.push(report::CheckResult::pass("x"));
+                r.finish();
+                r
+            }
+        }
+        let multi = full_run!("c", "0.1.0"; OkProducer("a"), OkProducer("b"));
+        assert_eq!(multi.reports.len(), 2);
+        assert_eq!(multi.overall_verdict(), report::Verdict::Pass);
+    }
+
+    #[test]
+    fn full_run_propagates_failures() {
+        struct OkProducer;
+        impl report::Producer for OkProducer {
+            fn produce(&self) -> report::Report {
+                let mut r = report::Report::new("c", "0.1.0").with_producer("ok");
+                r.push(report::CheckResult::pass("x"));
+                r.finish();
+                r
+            }
+        }
+        struct FailProducer;
+        impl report::Producer for FailProducer {
+            fn produce(&self) -> report::Report {
+                let mut r = report::Report::new("c", "0.1.0").with_producer("fail");
+                r.push(report::CheckResult::fail("y", report::Severity::Error));
+                r.finish();
+                r
+            }
+        }
+        let multi = full_run!("c", "0.1.0"; OkProducer, FailProducer);
+        assert_eq!(multi.overall_verdict(), report::Verdict::Fail);
+    }
+
+    #[cfg(all(feature = "fixtures", feature = "bench"))]
+    #[test]
+    fn full_run_with_real_producers() {
+        // fixtures: a self-test of TempProject lifecycle.
+        let fixture_producer =
+            fixtures::FixtureProducer::new("temp_project_lifecycle", "0.1.0", || {
+                let _p = fixtures::TempProject::new()
+                    .with_file("README.md", "hi")
+                    .build()?;
+                Ok(())
+            });
+        // bench: a tiny benchmark with no baseline.
+        let bench_producer = bench::BenchProducer::new(
+            || {
+                let mut b = bench::Benchmark::new("hot");
+                for _ in 0..5 {
+                    b.iter(|| std::hint::black_box(1 + 1));
+                }
+                b.finish()
+            },
+            "0.1.0",
+            None,
+            bench::Threshold::regression_pct(20.0),
+        );
+        let multi = full_run!("crate", "0.1.0"; fixture_producer, bench_producer);
+        assert_eq!(multi.reports.len(), 2);
     }
 }
