@@ -1,0 +1,67 @@
+[package]
+name = "dev-tools"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+readme = "README.md"
+license = "Apache-2.0"
+
+authors = [
+    "James Gober <me@jamesgober.com>"
+]
+
+description = "Modular verification toolkit for AI-assisted Rust development. Umbrella crate with feature gates over the dev-* suite."
+
+keywords = [
+    "testing",
+    "verification",
+    "benchmark",
+    "chaos",
+    "ai-tools"
+]
+
+categories = [
+    "development-tools",
+    "development-tools::testing",
+    "development-tools::profiling"
+]
+
+documentation = "https://docs.rs/dev-tools"
+repository = "https://github.com/jamesgober/dev-tools"
+homepage = "https://github.com/jamesgober/dev-tools"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+# Core: report schema is required for the umbrella to make sense.
+dev-report = { version = "0.1", path = "../dev-report" }
+
+# Optional sub-crates pulled in by feature flags.
+dev-fixtures = { version = "0.1", path = "../dev-fixtures", optional = true }
+dev-bench = { version = "0.1", path = "../dev-bench", optional = true }
+dev-async = { version = "0.1", path = "../dev-async", optional = true }
+dev-stress = { version = "0.1", path = "../dev-stress", optional = true }
+dev-chaos = { version = "0.1", path = "../dev-chaos", optional = true }
+
+[dev-dependencies]
+
+[features]
+# Sensible default for most projects: temp environments, perf checks,
+# and the report schema.
+default = ["fixtures", "bench"]
+
+# All sub-crates.
+full = ["fixtures", "bench", "async", "stress", "chaos"]
+
+# Per-crate feature flags.
+fixtures = ["dep:dev-fixtures"]
+bench = ["dep:dev-bench"]
+async = ["dep:dev-async"]
+stress = ["dep:dev-stress"]
+chaos = ["dep:dev-chaos"]
+
+[profile.release]
+opt-level = 3
+lto = "thin"
