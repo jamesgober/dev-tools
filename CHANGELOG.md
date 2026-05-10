@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-05-10
+
+### Added
+
+- New `async_full_run!` macro (gated by the `async` feature): async equivalent of `full_run!` for futures returning `Report`. Awaits each future in sequence and pushes its result into a `MultiReport`.
+- `prelude` expanded with `DurationRegression` and `SeverityChange` types from `dev-report`.
+- New `prelude::async_prelude` module (gated by `async`) re-exporting `dev-async`'s key items: `run_with_timeout`, `join_all_with_timeout`, `AsyncCheck`, `AsyncProducer`, `BlockingAsyncProducer`.
+
+### Documentation
+
+- Comprehensive README revamp:
+  - Feature flag table prominently at the top with use-case column.
+  - Quick-start section now shows install snippets for defaults, no-default-features (schema only), specific feature combinations, and feature-toggling.
+  - New API map table mapping each feature to its module path and top-level types.
+  - New "Composing producers" section covering both `full_run!` and `async_full_run!` with full examples.
+  - "Diff between runs" example added.
+
+[0.9.2]: https://github.com/jamesgober/dev-tools/releases/tag/v0.9.2
+
 ## [0.9.1] - 2026-05-09
 
 ### Added
@@ -61,5 +80,5 @@ Name-claim release. Coordinated v0.1.0 of all sibling crates:
 `dev-report`, `dev-fixtures`, `dev-bench`, `dev-async`,
 `dev-stress`, `dev-chaos`.
 
-[Unreleased]: https://github.com/jamesgober/dev-tools/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/jamesgober/dev-tools/compare/v0.9.2...HEAD
 [0.1.0]: https://github.com/jamesgober/dev-tools/releases/tag/v0.1.0

@@ -27,7 +27,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! dev-tools = "0.9.1"
+//! dev-tools = "0.9.2"
 //! ```
 //!
 //! ```rust
@@ -106,9 +106,33 @@ pub use dev_chaos as chaos;
 /// [`Producer`]: dev_report::Producer
 pub mod prelude {
     pub use dev_report::{
-        CheckResult, Diff, DiffOptions, Evidence, EvidenceData, EvidenceKind, FileRef, MultiReport,
-        Producer, Report, Severity, Verdict,
+        CheckResult, Diff, DiffOptions, DurationRegression, Evidence, EvidenceData, EvidenceKind,
+        FileRef, MultiReport, Producer, Report, Severity, SeverityChange, Verdict,
     };
+
+    /// Async-flavored prelude. Available with the `async` feature.
+    ///
+    /// Pulls in the standard prelude plus `dev_async`'s
+    /// `AsyncCheck`, `AsyncProducer`, and `BlockingAsyncProducer`
+    /// types so callers driving async producers don't have to
+    /// import them individually.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use dev_tools::prelude::async_prelude::*;
+    ///
+    /// // run_with_timeout, BlockingAsyncProducer, etc. all in scope
+    /// ```
+    #[cfg(feature = "async")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "async")))]
+    pub mod async_prelude {
+        pub use super::*;
+        pub use dev_async::{
+            join_all_with_timeout, run_with_timeout, AsyncCheck, AsyncProducer,
+            BlockingAsyncProducer,
+        };
+    }
 }
 
 /// Combine multiple `dev_report::Producer` results into a single
@@ -159,6 +183,58 @@ macro_rules! full_run {
     }};
 }
 
+/// Combine multiple `Future<Output = Report>` values into a single
+/// `MultiReport` keyed by `subject`/`version`.
+///
+/// Async equivalent of [`full_run!`] for callers already inside an
+/// async context. Each future is awaited in sequence (use a
+/// futures-runtime helper if you need concurrency); the resulting
+/// reports are pushed into the returned [`dev_report::MultiReport`].
+///
+/// Available with the `async` feature.
+///
+/// # Example
+///
+/// ```ignore
+/// use dev_tools::async_full_run;
+/// use dev_tools::report::{CheckResult, Report, Verdict};
+///
+/// async fn produce_a() -> Report {
+///     let mut r = Report::new("crate", "0.1.0").with_producer("a");
+///     r.push(CheckResult::pass("ok"));
+///     r.finish();
+///     r
+/// }
+///
+/// async fn produce_b() -> Report {
+///     let mut r = Report::new("crate", "0.1.0").with_producer("b");
+///     r.push(CheckResult::pass("ok"));
+///     r.finish();
+///     r
+/// }
+///
+/// # async fn ex() {
+/// let multi = async_full_run!("crate", "0.1.0"; produce_a(), produce_b()).await;
+/// assert_eq!(multi.reports.len(), 2);
+/// assert_eq!(multi.overall_verdict(), Verdict::Pass);
+/// # }
+/// ```
+#[cfg(feature = "async")]
+#[cfg_attr(docsrs, doc(cfg(feature = "async")))]
+#[macro_export]
+macro_rules! async_full_run {
+    ($subject:expr, $version:expr; $($fut:expr),* $(,)?) => {{
+        async {
+            let mut multi = $crate::report::MultiReport::new($subject, $version);
+            $(
+                multi.push($fut.await);
+            )*
+            multi.finish();
+            multi
+        }
+    }};
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -184,6 +260,10 @@ mod tests {
         let _ev = Evidence::numeric_int("count", 42);
         let _opts = DiffOptions::default();
         let _multi = MultiReport::new("c", "0.1.0");
+
+        // 0.9.2: also includes DurationRegression and SeverityChange.
+        let _dr: Option<DurationRegression> = None;
+        let _sc: Option<SeverityChange> = None;
 
         // Sanity-check that Severity and Producer/Diff/etc. are in scope.
         let _sev = Severity::Error;
@@ -276,5 +356,21 @@ mod tests {
         );
         let multi = full_run!("crate", "0.1.0"; fixture_producer, bench_producer);
         assert_eq!(multi.reports.len(), 2);
+    }
+
+    #[cfg(feature = "async")]
+    #[test]
+    fn async_full_run_compiles() {
+        // Compile-time check that async_full_run! expands cleanly.
+        // We don't drive the future here (no runtime in dev-deps), but
+        // compilation alone is meaningful: it catches macro-hygiene bugs.
+        async fn produce_a() -> report::Report {
+            let mut r = report::Report::new("c", "0.1.0").with_producer("a");
+            r.push(report::CheckResult::pass("x"));
+            r.finish();
+            r
+        }
+        let _fut = async_full_run!("c", "0.1.0"; produce_a(), produce_a());
+        // Drop the future without polling; compiles cleanly.
     }
 }
