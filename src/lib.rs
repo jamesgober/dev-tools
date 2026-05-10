@@ -27,7 +27,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! dev-tools = "0.9"
+//! dev-tools = "0.9.1"
 //! ```
 //!
 //! ```rust
@@ -77,6 +77,39 @@ pub use dev_stress as stress;
 #[cfg(feature = "chaos")]
 #[cfg_attr(docsrs, doc(cfg(feature = "chaos")))]
 pub use dev_chaos as chaos;
+
+/// Convenience re-exports for the most common items across the suite.
+///
+/// `use dev_tools::prelude::*;` to pull in the schema types
+/// ([`Report`], [`CheckResult`], [`Verdict`], [`Severity`], [`Evidence`],
+/// the [`Producer`] trait) plus `MultiReport` and `Diff`. Optional
+/// per-feature items (`fixtures::TempProject`, `bench::Benchmark`,
+/// etc.) are NOT in the prelude — pull them in directly via the
+/// re-exported sub-crate modules.
+///
+/// # Example
+///
+/// ```
+/// use dev_tools::prelude::*;
+///
+/// let mut r = Report::new("my-crate", "0.1.0");
+/// r.push(CheckResult::pass("compile"));
+/// r.finish();
+/// assert!(r.passed());
+/// ```
+///
+/// [`Report`]: dev_report::Report
+/// [`CheckResult`]: dev_report::CheckResult
+/// [`Verdict`]: dev_report::Verdict
+/// [`Severity`]: dev_report::Severity
+/// [`Evidence`]: dev_report::Evidence
+/// [`Producer`]: dev_report::Producer
+pub mod prelude {
+    pub use dev_report::{
+        CheckResult, Diff, DiffOptions, Evidence, EvidenceData, EvidenceKind, FileRef, MultiReport,
+        Producer, Report, Severity, Verdict,
+    };
+}
 
 /// Combine multiple `dev_report::Producer` results into a single
 /// `MultiReport` keyed by `subject`/`version`.
@@ -134,6 +167,28 @@ mod tests {
     fn report_module_is_always_available() {
         let r = report::Report::new("self", "0.1.0");
         assert_eq!(r.subject, "self");
+    }
+
+    #[test]
+    fn prelude_pulls_core_types() {
+        // The prelude should make these immediately accessible
+        // without further imports.
+        use crate::prelude::*;
+
+        let mut r = Report::new("c", "0.1.0");
+        r.push(CheckResult::pass("ok"));
+        r.finish();
+        assert_eq!(r.overall_verdict(), Verdict::Pass);
+        assert!(r.passed());
+
+        let _ev = Evidence::numeric_int("count", 42);
+        let _opts = DiffOptions::default();
+        let _multi = MultiReport::new("c", "0.1.0");
+
+        // Sanity-check that Severity and Producer/Diff/etc. are in scope.
+        let _sev = Severity::Error;
+        fn _takes_producer(_p: &dyn Producer) {}
+        fn _takes_diff(_d: &Diff) {}
     }
 
     #[cfg(feature = "fixtures")]

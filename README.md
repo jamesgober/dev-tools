@@ -37,7 +37,7 @@ about a Rust project:
 
 ```toml
 [dependencies]
-dev-tools = "0.9"
+dev-tools = "0.9.1"
 ```
 
 Default features include `fixtures`, `bench`, and the always-on
@@ -124,19 +124,19 @@ and pushes into a `dev_report::MultiReport`.
 Async-heavy project:
 
 ```toml
-dev-tools = { version = "0.9", features = ["async"] }
+dev-tools = { version = "0.9.1", features = ["async"] }
 ```
 
 Kitchen sink (CI verification rigs, AI agents):
 
 ```toml
-dev-tools = { version = "0.9", features = ["full"] }
+dev-tools = { version = "0.9.1", features = ["full"] }
 ```
 
 Schema-only (lightest possible):
 
 ```toml
-dev-tools = { version = "0.9", default-features = false }
+dev-tools = { version = "0.9.1", default-features = false }
 ```
 
 ## Why a verification suite

@@ -1,6 +1,6 @@
 [package]
 name = "dev-tools"
-version = "0.9.0"
+version = "0.9.1"
 edition = "2021"
 rust-version = "1.85"
 readme = "README.md"
@@ -36,14 +36,14 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Core: report schema is required for the umbrella to make sense.
-dev-report = { version = "0.9", path = "../dev-report" }
+dev-report = { version = "0.9.1", path = "../dev-report" }
 
 # Optional sub-crates pulled in by feature flags.
-dev-fixtures = { version = "0.9", path = "../dev-fixtures", optional = true }
-dev-bench = { version = "0.9", path = "../dev-bench", optional = true }
-dev-async = { version = "0.9", path = "../dev-async", optional = true }
-dev-stress = { version = "0.9", path = "../dev-stress", optional = true }
-dev-chaos = { version = "0.9", path = "../dev-chaos", optional = true }
+dev-fixtures = { version = "0.9.1", path = "../dev-fixtures", optional = true }
+dev-bench = { version = "0.9.1", path = "../dev-bench", optional = true }
+dev-async = { version = "0.9.1", path = "../dev-async", optional = true }
+dev-stress = { version = "0.9.1", path = "../dev-stress", optional = true }
+dev-chaos = { version = "0.9.1", path = "../dev-chaos", optional = true }
 
 [dev-dependencies]
 

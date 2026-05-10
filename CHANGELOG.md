@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-05-09
+
+### Added
+
+- `dev_tools::prelude` module re-exporting the most common items across the suite: `CheckResult`, `Diff`, `DiffOptions`, `Evidence`, `EvidenceData`, `EvidenceKind`, `FileRef`, `MultiReport`, `Producer`, `Report`, `Severity`, `Verdict`. Per-feature items (e.g. `fixtures::TempProject`) are NOT in the prelude — pull them in via the re-exported sub-crate modules.
+
+### Changed
+
+- Sub-crate dependency constraints bumped to `0.9.1` to align with the coordinated 0.9.1 patch release across the suite.
+
+[0.9.1]: https://github.com/jamesgober/dev-tools/releases/tag/v0.9.1
+
 ## [0.9.0] - 2026-05-08
 
 ### Changed
@@ -49,5 +61,5 @@ Name-claim release. Coordinated v0.1.0 of all sibling crates:
 `dev-report`, `dev-fixtures`, `dev-bench`, `dev-async`,
 `dev-stress`, `dev-chaos`.
 
-[Unreleased]: https://github.com/jamesgober/dev-tools/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/jamesgober/dev-tools/compare/v0.9.1...HEAD
 [0.1.0]: https://github.com/jamesgober/dev-tools/releases/tag/v0.1.0
