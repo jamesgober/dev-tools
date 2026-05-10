@@ -8,9 +8,9 @@
 
 - `dev_tools::prelude` module re-exporting the most common items across the suite: `CheckResult`, `Diff`, `DiffOptions`, `Evidence`, `EvidenceData`, `EvidenceKind`, `FileRef`, `MultiReport`, `Producer`, `Report`, `Severity`, `Verdict`. Per-feature items (e.g. `fixtures::TempProject`) are NOT in the prelude — pull them in via the re-exported sub-crate modules.
 
-### Changed
+### Notes
 
-- Sub-crate dependency constraints bumped to `0.9.1` to align with the coordinated 0.9.1 patch release across the suite.
+- Sub-crate dependency constraints remain `^0.9` (matches any 0.9.x). This keeps `dev-tools` compatible with both the prior 0.9.0 patch line and the new 0.9.1 features, and decouples `dev-tools` from coordinated patch releases of the sibling crates.
 
 [0.9.1]: https://github.com/jamesgober/dev-tools/releases/tag/v0.9.1
 

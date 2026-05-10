@@ -36,14 +36,16 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Core: report schema is required for the umbrella to make sense.
-dev-report = { version = "0.9.1", path = "../dev-report" }
+# `^0.9` SemVer requirement matches any 0.9.x — keeps dev-tools
+# decoupled from coordinated patch releases of the sibling crates.
+dev-report = { version = "0.9", path = "../dev-report" }
 
 # Optional sub-crates pulled in by feature flags.
-dev-fixtures = { version = "0.9.1", path = "../dev-fixtures", optional = true }
-dev-bench = { version = "0.9.1", path = "../dev-bench", optional = true }
-dev-async = { version = "0.9.1", path = "../dev-async", optional = true }
-dev-stress = { version = "0.9.1", path = "../dev-stress", optional = true }
-dev-chaos = { version = "0.9.1", path = "../dev-chaos", optional = true }
+dev-fixtures = { version = "0.9", path = "../dev-fixtures", optional = true }
+dev-bench = { version = "0.9", path = "../dev-bench", optional = true }
+dev-async = { version = "0.9", path = "../dev-async", optional = true }
+dev-stress = { version = "0.9", path = "../dev-stress", optional = true }
+dev-chaos = { version = "0.9", path = "../dev-chaos", optional = true }
 
 [dev-dependencies]
 
