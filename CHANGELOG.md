@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [0.9.5] - 2026-05-12
+
+Documentation and SEO pass. No code changes.
+
+### Changed
+
+- Header tagline rewritten to lead with developer value rather than the umbrella's internal role. The `AI-assisted` framing is demoted to one of several use cases (CI gates, release pipelines, AI assistants — all consume the same JSON).
+- Subtitle now reads `RUST VERIFICATION TOOLKIT — TESTS · BENCHES · COVERAGE · FUZZ · AUDIT` (was `VERIFICATION TOOLKIT FOR AI-ASSISTED RUST DEVELOPMENT`). Target audience widened from AI-tooling to every Rust crate maintainer.
+- "What it is" and "Why a verification suite" sections rewritten with a developer-pain-first framing. The list of failure modes now leads with regressions, async hangs, and silent fragility rather than AI code generation.
+- `Cargo.toml` `description` rewritten for crates.io search: leads with `Rust verification toolkit`, enumerates the actual verification dimensions, drops the `AI-assisted` framing.
+- `Cargo.toml` `keywords` retuned for crates.io search: `testing`, `benchmark`, `coverage`, `fuzz`, `audit` (was `testing`, `verification`, `benchmark`, `chaos`, `ai-tools`). Five slots, devs-find-this-via-search optimized.
+- Cross-wave-pipeline example heading renamed to `Cross-dimension pipeline` (no more `second-wave` references).
+
+### Added
+
+- New `## Command-line tools` section documents the `dev-ci` CLI (the suite's only binary): install instructions, multiple invocation patterns, link to `dev-ci`'s own README for the full reference.
+- New `## Roadmap` section with a planned-libraries status table covering `dev-property`, `dev-sanitizer`, `dev-build`, `dev-doc`, `dev-msrv`. Status legend included.
+
+[0.9.5]: https://github.com/jamesgober/dev-tools/releases/tag/v0.9.5
+
 ## [0.9.4] - 2026-05-12
 
 Suite expansion. Seven additional `dev-*` crates are now wired into
