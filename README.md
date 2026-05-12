@@ -396,11 +396,59 @@ drives the corresponding sub-crate's library API and emits a structured
 to the terminal by default or to a file in JSON / markdown / SARIF /
 JUnit XML.
 
-Install with the `cli` feature:
+#### Install
+
+The `dev` binary is gated behind the `cli` feature so library consumers
+don't pay clap's compile time. **You have to opt in once via `--features cli`
+before any of the commands below will work.**
 
 ```bash
+# From crates.io (recommended)
 cargo install dev-tools --features cli
+
+# From a local checkout (useful for testing pre-release changes)
+cargo install --path /path/to/dev-tools --features cli
+
+# From git tip
+cargo install --git https://github.com/jamesgober/dev-tools --features cli
 ```
+
+Verify the install:
+
+```bash
+dev --version            # prints `dev 0.9.7`
+dev version              # prints the full component table
+```
+
+Uninstall:
+
+```bash
+cargo uninstall dev-tools
+```
+
+Most subcommands shell out to an underlying tool (`cargo-llvm-cov`,
+`cargo-audit`, `cargo-deny`, `cargo-udeps`, `cargo-outdated`, `cargo-fuzz`,
+`cargo-mutants`). Install only the ones you actually use:
+
+```bash
+# Coverage gating
+cargo install cargo-llvm-cov
+
+# Security audit
+cargo install cargo-audit cargo-deny
+
+# Dep hygiene
+cargo install cargo-udeps cargo-outdated
+
+# Fuzzing
+cargo install cargo-fuzz
+
+# Mutation testing
+cargo install cargo-mutants
+```
+
+`dev test`, `dev clippy`, `dev check`, `dev bench`, `dev ci`, `dev report`,
+`dev diff`, `dev html`, and `dev flaky` need nothing beyond cargo itself.
 
 #### Commands
 
