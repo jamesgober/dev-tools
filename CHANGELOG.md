@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+## [0.9.6] - 2026-05-12
+
+The `dev` CLI lands. One binary, one subcommand per verification dimension.
+
+### Added
+
+- New `dev` binary gated behind the `cli` feature flag. `cargo install dev-tools --features cli` installs the unified CLI; library consumers continue to pay zero compile-time cost for clap when they don't opt in.
+- Fourteen flat subcommands, one verb per verification dimension: `dev test`, `dev clippy`, `dev check`, `dev bench`, `dev coverage`, `dev audit`, `dev deps`, `dev fuzz <target>`, `dev mutate`, `dev flaky`, `dev ci`, `dev report <path>`, `dev diff <a> <b>`, `dev html <path>`. No nested sub-subcommands — `dev test`, not `dev test run --foo`.
+- `dev test --full` runs the entire available verification stack (cargo test + clippy + check) and produces a `MultiReport`. Failures in one dimension don't short-circuit the others.
+- Polished terminal renderer with ANSI color, unicode verdict glyphs (`✓` / `✗` / `⚠` / `⊘`), aligned per-check timings, and a footer summary with the overall verdict. Color is opt-in based on `IsTerminal` detection — pipe to a file or non-TTY and you get plain text.
+- Every Report-producing subcommand accepts shared flags: `--out PATH` (write to file), `--format terminal|json|markdown|sarif|junit`, `--subject NAME`, `--subject-version V`, `--in DIR`, `--quiet`. Cargo.toml is auto-parsed for subject + version when the flags are omitted.
+- Exit codes: `0` for clean, `1` for any failed / warned check or non-clean diff, `2` for CLI / I/O errors. Errors print to stderr.
+- README `## Command-line tools` section rewritten with the full `dev` CLI surface, command table, common flags, example session, and exit-code reference. The existing `dev-ci` standalone CLI documentation is preserved below for users who only want the workflow generator.
+- New `cli` feature in `Cargo.toml` pulls in `clap` (4.x, derive feature) plus every sub-crate plus the renderer features of `dev-report` (`terminal`, `markdown`, `sarif`, `junit`). The feature is fully self-contained — toggling it on enables every dimension the CLI dispatches to.
+
+### Internal
+
+- `src/bin/dev.rs` is the binary entry point. ~600 lines total — clap derive shell, one `run_*` function per subcommand, a `pretty_report` / `pretty_multi` renderer, and a best-effort `cargo_metadata()` helper that scrapes the subject + version out of `Cargo.toml` without spawning `cargo metadata`.
+
+[0.9.6]: https://github.com/jamesgober/dev-tools/releases/tag/v0.9.6
+
 ## [0.9.5] - 2026-05-12
 
 Documentation and SEO pass. No code changes.
