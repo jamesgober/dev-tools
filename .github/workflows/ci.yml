@@ -9,6 +9,13 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+# Reusable shell snippet for cloning every sibling crate dev-tools
+# depends on as a path-dep. Keep this list in sync with the optional
+# deps in Cargo.toml.
+#
+# YAML anchors aren't supported in `run:` blocks, so this block is
+# repeated below. Update all copies together.
+
 jobs:
   test:
     name: Test (${{ matrix.os }})
@@ -27,6 +34,13 @@ jobs:
           git clone --depth 1 https://github.com/jamesgober/dev-async.git ../dev-async
           git clone --depth 1 https://github.com/jamesgober/dev-stress.git ../dev-stress
           git clone --depth 1 https://github.com/jamesgober/dev-chaos.git ../dev-chaos
+          git clone --depth 1 https://github.com/jamesgober/dev-coverage.git ../dev-coverage
+          git clone --depth 1 https://github.com/jamesgober/dev-security.git ../dev-security
+          git clone --depth 1 https://github.com/jamesgober/dev-deps.git ../dev-deps
+          git clone --depth 1 https://github.com/jamesgober/dev-ci.git ../dev-ci
+          git clone --depth 1 https://github.com/jamesgober/dev-fuzz.git ../dev-fuzz
+          git clone --depth 1 https://github.com/jamesgober/dev-flaky.git ../dev-flaky
+          git clone --depth 1 https://github.com/jamesgober/dev-mutate.git ../dev-mutate
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
@@ -61,6 +75,13 @@ jobs:
           git clone --depth 1 https://github.com/jamesgober/dev-async.git ../dev-async
           git clone --depth 1 https://github.com/jamesgober/dev-stress.git ../dev-stress
           git clone --depth 1 https://github.com/jamesgober/dev-chaos.git ../dev-chaos
+          git clone --depth 1 https://github.com/jamesgober/dev-coverage.git ../dev-coverage
+          git clone --depth 1 https://github.com/jamesgober/dev-security.git ../dev-security
+          git clone --depth 1 https://github.com/jamesgober/dev-deps.git ../dev-deps
+          git clone --depth 1 https://github.com/jamesgober/dev-ci.git ../dev-ci
+          git clone --depth 1 https://github.com/jamesgober/dev-fuzz.git ../dev-fuzz
+          git clone --depth 1 https://github.com/jamesgober/dev-flaky.git ../dev-flaky
+          git clone --depth 1 https://github.com/jamesgober/dev-mutate.git ../dev-mutate
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -95,6 +116,13 @@ jobs:
           git clone --depth 1 https://github.com/jamesgober/dev-async.git ../dev-async
           git clone --depth 1 https://github.com/jamesgober/dev-stress.git ../dev-stress
           git clone --depth 1 https://github.com/jamesgober/dev-chaos.git ../dev-chaos
+          git clone --depth 1 https://github.com/jamesgober/dev-coverage.git ../dev-coverage
+          git clone --depth 1 https://github.com/jamesgober/dev-security.git ../dev-security
+          git clone --depth 1 https://github.com/jamesgober/dev-deps.git ../dev-deps
+          git clone --depth 1 https://github.com/jamesgober/dev-ci.git ../dev-ci
+          git clone --depth 1 https://github.com/jamesgober/dev-fuzz.git ../dev-fuzz
+          git clone --depth 1 https://github.com/jamesgober/dev-flaky.git ../dev-flaky
+          git clone --depth 1 https://github.com/jamesgober/dev-mutate.git ../dev-mutate
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo doc --all-features --no-deps
@@ -112,6 +140,13 @@ jobs:
           git clone --depth 1 https://github.com/jamesgober/dev-async.git ../dev-async
           git clone --depth 1 https://github.com/jamesgober/dev-stress.git ../dev-stress
           git clone --depth 1 https://github.com/jamesgober/dev-chaos.git ../dev-chaos
+          git clone --depth 1 https://github.com/jamesgober/dev-coverage.git ../dev-coverage
+          git clone --depth 1 https://github.com/jamesgober/dev-security.git ../dev-security
+          git clone --depth 1 https://github.com/jamesgober/dev-deps.git ../dev-deps
+          git clone --depth 1 https://github.com/jamesgober/dev-ci.git ../dev-ci
+          git clone --depth 1 https://github.com/jamesgober/dev-fuzz.git ../dev-fuzz
+          git clone --depth 1 https://github.com/jamesgober/dev-flaky.git ../dev-flaky
+          git clone --depth 1 https://github.com/jamesgober/dev-mutate.git ../dev-mutate
       - uses: dtolnay/rust-toolchain@1.85
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --all-features --verbose

@@ -21,7 +21,14 @@
 //! - `async`: async-specific validation (deadlocks, hung futures, leaks).
 //! - `stress`: high-load stress testing (concurrency, volume).
 //! - `chaos`: failure injection and recovery testing.
-//! - `full`: all of the above.
+//! - `coverage`: test coverage via `cargo-llvm-cov`.
+//! - `security`: vulnerability + policy scanning via `cargo-audit` + `cargo-deny`.
+//! - `deps`: dependency health via `cargo-udeps` + `cargo-outdated`.
+//! - `ci`: GitHub Actions workflow generator (+ `dev-ci` CLI).
+//! - `fuzz`: libFuzzer integration via `cargo-fuzz`.
+//! - `flaky`: repeated-run flaky-test detection.
+//! - `mutate`: mutation testing via `cargo-mutants`.
+//! - `full`: every feature above.
 //!
 //! ## Quick example
 //!
@@ -45,6 +52,13 @@
 //! - [`dev-async`](https://crates.io/crates/dev-async) - async validation
 //! - [`dev-stress`](https://crates.io/crates/dev-stress) - load testing
 //! - [`dev-chaos`](https://crates.io/crates/dev-chaos) - failure injection
+//! - [`dev-coverage`](https://crates.io/crates/dev-coverage) - test coverage
+//! - [`dev-security`](https://crates.io/crates/dev-security) - vulnerability + policy scanning
+//! - [`dev-deps`](https://crates.io/crates/dev-deps) - dependency health
+//! - [`dev-ci`](https://crates.io/crates/dev-ci) - CI workflow generator
+//! - [`dev-fuzz`](https://crates.io/crates/dev-fuzz) - libFuzzer integration
+//! - [`dev-flaky`](https://crates.io/crates/dev-flaky) - flaky-test detection
+//! - [`dev-mutate`](https://crates.io/crates/dev-mutate) - mutation testing
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
@@ -120,6 +134,45 @@ pub use dev_stress as stress;
 #[cfg(feature = "chaos")]
 #[cfg_attr(docsrs, doc(cfg(feature = "chaos")))]
 pub use dev_chaos as chaos;
+
+/// Re-export of [`dev_coverage`]. Available with the `coverage` feature.
+#[cfg(feature = "coverage")]
+#[cfg_attr(docsrs, doc(cfg(feature = "coverage")))]
+pub use dev_coverage as coverage;
+
+/// Re-export of [`dev_security`]. Available with the `security` feature.
+#[cfg(feature = "security")]
+#[cfg_attr(docsrs, doc(cfg(feature = "security")))]
+pub use dev_security as security;
+
+/// Re-export of [`dev_deps`]. Available with the `deps` feature.
+#[cfg(feature = "deps")]
+#[cfg_attr(docsrs, doc(cfg(feature = "deps")))]
+pub use dev_deps as deps;
+
+/// Re-export of [`dev_ci`]. Available with the `ci` feature.
+///
+/// `dev-ci` exposes the `Generator` builder + `PathDep` type for
+/// emitting calibrated CI workflows. The `dev-ci` CLI binary is not
+/// built through this re-export; install it via `cargo install dev-ci`.
+#[cfg(feature = "ci")]
+#[cfg_attr(docsrs, doc(cfg(feature = "ci")))]
+pub use dev_ci as ci;
+
+/// Re-export of [`dev_fuzz`]. Available with the `fuzz` feature.
+#[cfg(feature = "fuzz")]
+#[cfg_attr(docsrs, doc(cfg(feature = "fuzz")))]
+pub use dev_fuzz as fuzz;
+
+/// Re-export of [`dev_flaky`]. Available with the `flaky` feature.
+#[cfg(feature = "flaky")]
+#[cfg_attr(docsrs, doc(cfg(feature = "flaky")))]
+pub use dev_flaky as flaky;
+
+/// Re-export of [`dev_mutate`]. Available with the `mutate` feature.
+#[cfg(feature = "mutate")]
+#[cfg_attr(docsrs, doc(cfg(feature = "mutate")))]
+pub use dev_mutate as mutate;
 
 /// Convenience re-exports for the most common items across the suite.
 ///
