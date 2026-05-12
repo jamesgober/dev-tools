@@ -2,6 +2,41 @@
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-05-12
+
+Suite expansion. Seven additional `dev-*` crates are now wired into
+the umbrella through new optional features.
+
+### Added
+
+- Seven new optional dependencies, one per new sub-crate, all pinned at `^0.9` with path-deps to sibling repos:
+  - `dev-coverage` — test coverage via `cargo-llvm-cov`.
+  - `dev-security` — vulnerability + policy scanning via `cargo-audit` + `cargo-deny`.
+  - `dev-deps` — dependency health via `cargo-udeps` + `cargo-outdated`.
+  - `dev-ci` — GitHub Actions workflow generator (`Generator` builder + `PathDep` type; the CLI binary still installs via `cargo install dev-ci`).
+  - `dev-fuzz` — libFuzzer integration via `cargo-fuzz`.
+  - `dev-flaky` — repeated-run flaky-test detection.
+  - `dev-mutate` — mutation testing via `cargo-mutants`.
+- Seven new feature flags mirror the dependencies: `coverage`, `security`, `deps`, `ci`, `fuzz`, `flaky`, `mutate`. Each gates its corresponding sub-crate exactly the same way `fixtures`, `bench`, `async`, `stress`, `chaos` gate theirs.
+- `full` feature now pulls in all twelve sub-crates (was five). Use `features = ["full"]` to get the entire suite.
+- Seven new feature-gated re-exports in `dev_tools::*`: `coverage`, `security`, `deps`, `ci`, `fuzz`, `flaky`, `mutate`. Each mirrors its underlying crate one-to-one. Example: `dev_tools::coverage::CoverageRun` is the same type as `dev_coverage::CoverageRun`.
+
+### Changed
+
+- `default = ["fixtures", "bench"]` is unchanged. New features are opt-in to keep the default build footprint small.
+- README rewritten to reflect the full 13-sub-crate map (one report schema + twelve verification dimensions). The feature flag table now lists every option in one place; the API map table maps each feature to its module path and top-level types.
+- CI workflow now clones every sibling crate as a path-dep in every job that runs cargo.
+
+### Note
+
+This release is purely additive on top of `0.9.3`. Existing code that
+uses `dev_tools::report`, `dev_tools::fixtures`, `dev_tools::bench`,
+etc. continues to compile unchanged. Projects opting into the new
+features should set `default-features = false` if they want a minimal
+build and pick exactly the verification dimensions they need.
+
+[0.9.4]: https://github.com/jamesgober/dev-tools/releases/tag/v0.9.4
+
 ## [0.9.3] - 2026-05-12
 
 ### Added

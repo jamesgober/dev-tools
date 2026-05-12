@@ -20,19 +20,25 @@
 ## What it is
 
 `dev-tools` is the convenient one-import entry point for the `dev-*`
-verification suite. Instead of pulling in seven separate crates and
+verification suite. Instead of pulling in a dozen separate crates and
 wiring them together, you add one dependency and turn on the parts
 you need with feature flags.
 
 The suite gives an AI agent (or a CI gate) machine-readable evidence
 about a Rust project:
 
-- Did it compile?
-- Did tests pass?
+- Did it compile? Did tests pass?
 - Did performance regress?
-- Did async code hang?
+- Did async code hang? Task leaks? Hung shutdown?
 - Did the system collapse under load?
 - Did failure recovery work?
+- What % of the code is actually exercised by tests?
+- Any known CVEs, banned licenses, or policy violations in the dep tree?
+- Any unused or many-major-versions-behind dependencies?
+- Does the CI workflow itself match the project's `dev-*` feature set?
+- Does the fuzz harness catch the crashes you expect?
+- Which tests are flaky vs reliably broken?
+- Does mutation testing reveal under-asserting tests?
 
 Output flows through [`dev-report`](https://crates.io/crates/dev-report)
 — a stable, versioned JSON schema. No log parsing.
@@ -49,7 +55,14 @@ Pick features by what you want to verify:
 | `async` | — | [`dev-async`](https://crates.io/crates/dev-async) — `run_with_timeout`, deadlock detection, task tracking, shutdown probes | Hung futures, task leaks, shutdown verification. |
 | `stress` | — | [`dev-stress`](https://crates.io/crates/dev-stress) — `StressRun`, `SoakRun`, latency percentiles | High-load and sustained-load testing. |
 | `chaos` | — | [`dev-chaos`](https://crates.io/crates/dev-chaos) — failure injection, latency injection, crash points, IO wrappers | Failure-recovery testing. |
-| `full` | — | All of the above | Kitchen-sink verification rigs. |
+| `coverage` | — | [`dev-coverage`](https://crates.io/crates/dev-coverage) — wraps `cargo-llvm-cov`; line / function / region kill rates; baseline diff | "Did this PR drop coverage below 80%?" |
+| `security` | — | [`dev-security`](https://crates.io/crates/dev-security) — wraps `cargo-audit` + `cargo-deny`; CVE scan + license + banned-crate policy | "Any vulnerable dependencies?" |
+| `deps` | — | [`dev-deps`](https://crates.io/crates/dev-deps) — wraps `cargo-udeps` + `cargo-outdated`; unused + outdated + major-lag findings | "Are we behind on the dep tree?" |
+| `ci` | — | [`dev-ci`](https://crates.io/crates/dev-ci) — `Generator` builder for GitHub Actions workflow YAML | "Keep the CI workflow in sync with the feature set." |
+| `fuzz` | — | [`dev-fuzz`](https://crates.io/crates/dev-fuzz) — wraps `cargo-fuzz`; crash / timeout / OOM with reproducer paths | "Did this fuzz target survive the budget?" |
+| `flaky` | — | [`dev-flaky`](https://crates.io/crates/dev-flaky) — N-iteration `cargo test`; stable / flaky / broken classification | "Which tests fail intermittently?" |
+| `mutate` | — | [`dev-mutate`](https://crates.io/crates/dev-mutate) — wraps `cargo-mutants`; kill rate + surviving-mutant evidence | "Does the test suite actually assert enough?" |
+| `full` | — | Every feature above. | Kitchen-sink verification rigs. |
 
 **Default** = `fixtures` + `bench` + `report`. Sensible for most projects.
 
@@ -59,7 +72,7 @@ Pick features by what you want to verify:
 
 ```toml
 [dependencies]
-dev-tools = "0.9.3"
+dev-tools = "0.9.4"
 ```
 
 You get: `report` (always), `fixtures`, `bench`.
@@ -68,7 +81,7 @@ You get: `report` (always), `fixtures`, `bench`.
 
 ```toml
 [dependencies]
-dev-tools = { version = "0.9.3", default-features = false }
+dev-tools = { version = "0.9.4", default-features = false }
 ```
 
 You get: `report` only. No `fixtures`, no `bench`. Ideal when you
@@ -80,22 +93,32 @@ Pick exactly what you need. Examples:
 
 ```toml
 # Async-heavy service: schema + async helpers, no fixtures/bench.
-dev-tools = { version = "0.9.3", default-features = false, features = ["async"] }
+dev-tools = { version = "0.9.4", default-features = false, features = ["async"] }
 ```
 
 ```toml
 # Defaults plus async (additive).
-dev-tools = { version = "0.9.3", features = ["async"] }
+dev-tools = { version = "0.9.4", features = ["async"] }
 ```
 
 ```toml
 # Defaults plus chaos and stress.
-dev-tools = { version = "0.9.3", features = ["chaos", "stress"] }
+dev-tools = { version = "0.9.4", features = ["chaos", "stress"] }
+```
+
+```toml
+# Library shipping to production: coverage + security + deps + flaky.
+dev-tools = { version = "0.9.4", features = ["coverage", "security", "deps", "flaky"] }
+```
+
+```toml
+# Mutation-testing + fuzz harness with default test environments.
+dev-tools = { version = "0.9.4", features = ["mutate", "fuzz"] }
 ```
 
 ```toml
 # Everything (CI verification rigs, AI agents that drive the whole suite).
-dev-tools = { version = "0.9.3", features = ["full"] }
+dev-tools = { version = "0.9.4", features = ["full"] }
 ```
 
 ### Toggle features off
@@ -105,7 +128,7 @@ dev-tools = { version = "0.9.3", features = ["full"] }
 
 ```toml
 # Async + chaos, NO fixtures/bench.
-dev-tools = { version = "0.9.3", default-features = false, features = ["async", "chaos"] }
+dev-tools = { version = "0.9.4", default-features = false, features = ["async", "chaos"] }
 ```
 
 ## API map
@@ -122,6 +145,13 @@ Each feature exposes the underlying sub-crate at a fixed path:
 | `async` | `dev_tools::r#async` | `run_with_timeout`, `join_all_with_timeout`, `AsyncProducer`, `BlockingAsyncProducer`, `deadlock::*`, `tasks::*`, `shutdown::*` |
 | `stress` | `dev_tools::stress` | `StressRun`, `StressResult`, `SoakRun`, `Workload`, `LatencyTracker`, `LatencyStats`, `StressProducer` |
 | `chaos` | `dev_tools::chaos` | `FailureSchedule`, `FailureMode`, `assert_recovered`, `ChaosProducer`, `io::*`, `latency::*`, `crash::*` |
+| `coverage` | `dev_tools::coverage` | `CoverageRun`, `CoverageResult`, `CoverageThreshold`, `Baseline`, `JsonFileBaselineStore`, `CoverageProducer`, `FileCoverage` |
+| `security` | `dev_tools::security` | `AuditRun`, `AuditScope`, `AuditResult`, `Finding`, `FindingSource`, `AuditProducer` |
+| `deps` | `dev_tools::deps` | `DepCheck`, `DepScope`, `DepKind`, `DepResult`, `UnusedDep`, `OutdatedDep`, `DepProducer` |
+| `ci` | `dev_tools::ci` | `Generator`, `Target`, `PathDep` |
+| `fuzz` | `dev_tools::fuzz` | `FuzzRun`, `FuzzBudget`, `FuzzFindingKind`, `FuzzResult`, `Sanitizer`, `FuzzProducer` |
+| `flaky` | `dev_tools::flaky` | `FlakyRun`, `FlakyResult`, `Classification`, `TestReliability`, `FlakyProducer` |
+| `mutate` | `dev_tools::mutate` | `MutateRun`, `MutateResult`, `MutateThreshold`, `SurvivingMutant`, `FileBreakdown`, `MutateProducer` |
 
 ### Built-in producers
 
@@ -248,6 +278,33 @@ let multi = full_run!("my-crate", "0.1.0"; fixture, benchmark);
 println!("{}", multi.to_json().unwrap());
 ```
 
+### Cross-wave pipeline (sketch)
+
+With the second-wave features enabled, the same `full_run!` macro
+combines producers from every verification dimension:
+
+```rust,no_run
+use dev_tools::{full_run, coverage, security, mutate, flaky};
+use dev_tools::report::Producer;
+
+let cov = coverage::CoverageProducer::new(
+    coverage::CoverageRun::new("my-crate", "0.1.0"),
+    coverage::CoverageThreshold::min_line_pct(80.0),
+);
+let sec = security::AuditProducer::new(
+    security::AuditRun::new("my-crate", "0.1.0").scope(security::AuditScope::All),
+);
+let mut_ = mutate::MutateProducer::new(
+    mutate::MutateRun::new("my-crate", "0.1.0"),
+    mutate::MutateThreshold::min_kill_pct(70.0),
+);
+let flk = flaky::FlakyProducer::new(flaky::FlakyRun::new("my-crate", "0.1.0").iterations(20));
+
+let multi = full_run!("my-crate", "0.1.0"; cov, sec, mut_, flk);
+let html = dev_tools::html::multi_report_to_html(&multi);
+std::fs::write("report.html", html).unwrap();
+```
+
 ### Compose multiple producers — async
 
 With the `async` feature, the [`async_full_run!`] macro does the same
@@ -312,6 +369,9 @@ AI can generate code quickly. Without verification, AI-generated code can:
 - Leak memory
 - Hide race conditions
 - Look clean while being fragile
+- Have tests that pass without asserting anything
+- Drag in unused or vulnerable dependencies
+- Be invisibly fragile until a specific input crashes it
 
 The `dev-*` suite gives an AI agent a structured way to validate its
 own work before a human has to trust it.
@@ -325,7 +385,7 @@ happen ahead of `1.0`. The schema (`dev-report`) stays at
 
 Sub-crate dependency constraints are pinned at `^0.9` (any 0.9.x).
 The umbrella crate does not require a coordinated patch release of
-the sibling crates; you can safely use `dev-tools 0.9.3` alongside
+the sibling crates; you can safely use `dev-tools 0.9.4` alongside
 sibling crates at any 0.9.x version.
 
 ## Minimum supported Rust version
