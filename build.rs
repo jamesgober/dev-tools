@@ -10,8 +10,8 @@
 //! (e.g. `cargo install` from a tarball that strangely lacked one), the
 //! generated table uses `"0.0.0"` placeholders rather than aborting the
 //! build. The CLI keeps working; the `dev version` output just shows
-//! `0.0.0` for any sibling we couldn't resolve. This makes the build
-//! robust without forcing a panic on weird package-manager edge cases.
+//! `0.0.0` for any sibling we couldn't resolve. The build never panics
+//! on a weird package-manager edge case.
 
 use std::env;
 use std::fs;
