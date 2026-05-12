@@ -1,6 +1,6 @@
 [package]
 name = "dev-tools"
-version = "0.9.4"
+version = "0.9.5"
 edition = "2021"
 rust-version = "1.85"
 readme = "README.md"
@@ -10,14 +10,14 @@ authors = [
     "James Gober <me@jamesgober.com>"
 ]
 
-description = "Modular verification toolkit for AI-assisted Rust development. Umbrella crate with feature gates over the dev-* suite."
+description = "Rust verification toolkit. Tests, benches, coverage, fuzz, security audit, dep hygiene, mutation, chaos, async, stress — one crate, opt in with feature flags."
 
 keywords = [
     "testing",
-    "verification",
     "benchmark",
-    "chaos",
-    "ai-tools"
+    "coverage",
+    "fuzz",
+    "audit"
 ]
 
 categories = [

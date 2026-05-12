@@ -1,47 +1,53 @@
 <h1 align="center">
+    <img width="99" alt="Rust logo" src="https://raw.githubusercontent.com/jamesgober/rust-collection/72baabd71f00e14aa9184efcb16fa3deddda3a0a/assets/rust-logo.svg">
+    <br>
     <strong>dev-tools</strong>
     <br>
-    <sup><sub>VERIFICATION TOOLKIT FOR AI-ASSISTED RUST DEVELOPMENT</sub></sup>
+    <sup><sub>RUST VERIFICATION TOOLKIT &mdash; TESTS &middot; BENCHES &middot; COVERAGE &middot; FUZZ &middot; AUDIT</sub></sup>
 </h1>
-
 <p align="center">
     <a href="https://crates.io/crates/dev-tools"><img alt="crates.io" src="https://img.shields.io/crates/v/dev-tools.svg"></a>
     <a href="https://crates.io/crates/dev-tools"><img alt="downloads" src="https://img.shields.io/crates/d/dev-tools.svg"></a>
     <a href="https://github.com/jamesgober/dev-tools/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jamesgober/dev-tools/actions/workflows/ci.yml/badge.svg"></a>
+    <img alt="MSRV" src="https://img.shields.io/badge/MSRV-1.85%2B-blue.svg?style=flat-square" title="Rust Version">
     <a href="https://docs.rs/dev-tools"><img alt="docs.rs" src="https://docs.rs/dev-tools/badge.svg"></a>
 </p>
 
 <p align="center">
-    Umbrella crate over the <code>dev-*</code> verification suite.
+    <strong>Verify a Rust crate from every angle.</strong> One dependency, one feature flag per check.<br>
+    Tests, benches, coverage, fuzz, audit, mutation, chaos, async, stress, dep hygiene, CI generation — all in one toolkit.
 </p>
 
----
+<br>
 
 ## What it is
 
-`dev-tools` is the convenient one-import entry point for the `dev-*`
-verification suite. Instead of pulling in a dozen separate crates and
-wiring them together, you add one dependency and turn on the parts
-you need with feature flags.
+`dev-tools` is the one-import entry point for the `dev-*` verification
+suite. Instead of pulling in a dozen separate crates and wiring them
+together, you add one dependency and turn on the parts you need with
+feature flags.
 
-The suite gives an AI agent (or a CI gate) machine-readable evidence
-about a Rust project:
+The suite answers, with machine-readable evidence, the questions
+a Rust crate maintainer actually cares about:
 
 - Did it compile? Did tests pass?
-- Did performance regress?
+- Did performance regress against the baseline?
 - Did async code hang? Task leaks? Hung shutdown?
-- Did the system collapse under load?
-- Did failure recovery work?
-- What % of the code is actually exercised by tests?
+- Did the system collapse under sustained load?
+- Did failure recovery actually work?
+- What % of the code is exercised by tests?
 - Any known CVEs, banned licenses, or policy violations in the dep tree?
 - Any unused or many-major-versions-behind dependencies?
-- Does the CI workflow itself match the project's `dev-*` feature set?
-- Does the fuzz harness catch the crashes you expect?
-- Which tests are flaky vs reliably broken?
-- Does mutation testing reveal under-asserting tests?
+- Does the CI workflow match the project's enabled features?
+- Did the fuzz harness catch the crashes the budget should have caught?
+- Which tests are flaky vs. reliably broken?
+- Does mutation testing reveal tests that pass without asserting anything?
 
-Output flows through [`dev-report`](https://crates.io/crates/dev-report)
-— a stable, versioned JSON schema. No log parsing.
+Every check flows through [`dev-report`](https://crates.io/crates/dev-report)
+— a stable, versioned JSON schema. No log scraping, no colored
+checkmarks. Output is consumable by a CI gate, a release pipeline,
+a dashboard, a `jq` one-liner, or an AI assistant trying to validate
+its own work.
 
 ## Feature flags
 
@@ -72,7 +78,7 @@ Pick features by what you want to verify:
 
 ```toml
 [dependencies]
-dev-tools = "0.9.4"
+dev-tools = "0.9.5"
 ```
 
 You get: `report` (always), `fixtures`, `bench`.
@@ -81,7 +87,7 @@ You get: `report` (always), `fixtures`, `bench`.
 
 ```toml
 [dependencies]
-dev-tools = { version = "0.9.4", default-features = false }
+dev-tools = { version = "0.9.5", default-features = false }
 ```
 
 You get: `report` only. No `fixtures`, no `bench`. Ideal when you
@@ -93,32 +99,32 @@ Pick exactly what you need. Examples:
 
 ```toml
 # Async-heavy service: schema + async helpers, no fixtures/bench.
-dev-tools = { version = "0.9.4", default-features = false, features = ["async"] }
+dev-tools = { version = "0.9.5", default-features = false, features = ["async"] }
 ```
 
 ```toml
 # Defaults plus async (additive).
-dev-tools = { version = "0.9.4", features = ["async"] }
+dev-tools = { version = "0.9.5", features = ["async"] }
 ```
 
 ```toml
 # Defaults plus chaos and stress.
-dev-tools = { version = "0.9.4", features = ["chaos", "stress"] }
+dev-tools = { version = "0.9.5", features = ["chaos", "stress"] }
 ```
 
 ```toml
 # Library shipping to production: coverage + security + deps + flaky.
-dev-tools = { version = "0.9.4", features = ["coverage", "security", "deps", "flaky"] }
+dev-tools = { version = "0.9.5", features = ["coverage", "security", "deps", "flaky"] }
 ```
 
 ```toml
 # Mutation-testing + fuzz harness with default test environments.
-dev-tools = { version = "0.9.4", features = ["mutate", "fuzz"] }
+dev-tools = { version = "0.9.5", features = ["mutate", "fuzz"] }
 ```
 
 ```toml
 # Everything (CI verification rigs, AI agents that drive the whole suite).
-dev-tools = { version = "0.9.4", features = ["full"] }
+dev-tools = { version = "0.9.5", features = ["full"] }
 ```
 
 ### Toggle features off
@@ -128,7 +134,7 @@ dev-tools = { version = "0.9.4", features = ["full"] }
 
 ```toml
 # Async + chaos, NO fixtures/bench.
-dev-tools = { version = "0.9.4", default-features = false, features = ["async", "chaos"] }
+dev-tools = { version = "0.9.5", default-features = false, features = ["async", "chaos"] }
 ```
 
 ## API map
@@ -278,10 +284,10 @@ let multi = full_run!("my-crate", "0.1.0"; fixture, benchmark);
 println!("{}", multi.to_json().unwrap());
 ```
 
-### Cross-wave pipeline (sketch)
+### Cross-dimension pipeline (sketch)
 
-With the second-wave features enabled, the same `full_run!` macro
-combines producers from every verification dimension:
+With coverage / security / mutation / flake features enabled, the same
+`full_run!` macro combines producers from every verification dimension:
 
 ```rust,no_run
 use dev_tools::{full_run, coverage, security, mutate, flaky};
@@ -360,21 +366,65 @@ if !diff.is_clean() {
 
 ## Why a verification suite
 
-AI can generate code quickly. Without verification, AI-generated code can:
+`cargo test` is necessary, not sufficient. Code that compiles and
+passes the test suite can still:
 
-- Compile but behave incorrectly
-- Pass simple tests but fail under load
-- Introduce performance regressions
-- Break async shutdown
-- Leak memory
-- Hide race conditions
-- Look clean while being fragile
-- Have tests that pass without asserting anything
-- Drag in unused or vulnerable dependencies
-- Be invisibly fragile until a specific input crashes it
+- Behave correctly in unit tests but fail under sustained load
+- Introduce silent performance regressions against the baseline
+- Break async shutdown or leak tasks
+- Hide race conditions and memory leaks
+- Look clean while being one specific input away from a crash
+- Have tests that pass without asserting anything meaningful
+- Drag in unused, outdated, or vulnerable dependencies
+- Pass on the developer's machine and fail intermittently in CI
 
-The `dev-*` suite gives an AI agent a structured way to validate its
-own work before a human has to trust it.
+The `dev-*` suite produces machine-readable evidence at every one of
+those layers. Use it from `cargo test`, from a CI gate, from a release
+pipeline — or to give an AI assistant something concrete to validate
+its own work against. The output is the same.
+
+## Command-line tools
+
+Most of the suite is library-only — you drive it from a `tests/` file
+or a custom binary, and consume the resulting JSON. One sub-crate ships
+an actual CLI:
+
+### `dev-ci` — generate a calibrated CI workflow
+
+[`dev-ci`](https://crates.io/crates/dev-ci) emits a GitHub Actions
+workflow YAML tuned to the dev-* features you enable. Install once:
+
+```bash
+cargo install dev-ci
+```
+
+Quick examples:
+
+```bash
+# Default: test job on ubuntu-latest, written to .github/workflows/ci.yml
+dev-ci generate
+
+# Multi-OS matrix + lint/fmt/docs/MSRV jobs
+dev-ci generate \
+    --matrix ubuntu-latest,macos-latest,windows-latest \
+    --with clippy,fmt,docs,msrv \
+    --msrv 1.85
+
+# Project that uses path-deps to sibling repos
+dev-ci generate \
+    --features fixtures,bench,coverage \
+    --path-dep dev-report=https://github.com/jamesgober/dev-report.git \
+    --path-dep dev-fixtures=https://github.com/jamesgober/dev-fixtures.git
+
+# Preview without writing
+dev-ci generate --print
+```
+
+The generator stays in sync with the dev-* feature set — turning on
+`coverage` adds an `llvm-cov` job, `security` adds a `cargo-audit`
+job, `mutate` adds a `cargo-mutants` job, and so on. See
+[`dev-ci`'s README](https://github.com/jamesgober/dev-ci#readme) for
+the full reference.
 
 ## Status
 
@@ -385,8 +435,29 @@ happen ahead of `1.0`. The schema (`dev-report`) stays at
 
 Sub-crate dependency constraints are pinned at `^0.9` (any 0.9.x).
 The umbrella crate does not require a coordinated patch release of
-the sibling crates; you can safely use `dev-tools 0.9.4` alongside
+the sibling crates; you can safely use `dev-tools 0.9.5` alongside
 sibling crates at any 0.9.x version.
+
+## Roadmap
+
+The collection is iterative. The current 14 crates are listed in the
+[feature table](#feature-flags) above; the table below tracks
+libraries planned for upcoming slices.
+
+| Crate | Purpose | Status |
+|---|---|---|
+| `dev-property` | Property-based testing wrapper (proptest / quickcheck) | 📋 Planned |
+| `dev-sanitizer` | ASAN / MSAN / TSAN integration | 📋 Planned |
+| `dev-build` | Build-time and binary-size regression tracking | 📋 Planned |
+| `dev-doc` | Doc-test orchestration and doc-coverage gates | 📋 Planned |
+| `dev-msrv` | MSRV verification across the dep tree | 📋 Planned |
+
+Legend: ✅ Released &middot; 🧪 Testing &middot; 🚧 In development &middot; 📋 Planned.
+
+Got a suggestion? Open an issue on
+[`dev-tools`](https://github.com/jamesgober/dev-tools/issues) — the
+collection is shaped by what real Rust crates actually need at
+release time.
 
 ## Minimum supported Rust version
 
@@ -398,3 +469,15 @@ MSRVs after their transitive deps required Rust 1.81+ and
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).
+
+
+
+
+
+<!-- COPYRIGHT
+---------------------------------->
+<div align="center">
+    <br>
+    <h2></h2>
+    Copyright &copy; 2026 James Gober.
+</div>
