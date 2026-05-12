@@ -53,8 +53,8 @@ dev-async    = { version = "0.9", path = "../dev-async",    optional = true }
 dev-stress   = { version = "0.9", path = "../dev-stress",   optional = true }
 dev-chaos    = { version = "0.9", path = "../dev-chaos",    optional = true }
 
-# New (v0.9.4): the second wave of sub-crates. Each one is independently
-# opt-in; `full` pulls in everything.
+# Added in v0.9.4. Each one is independently opt-in; `full` pulls in
+# everything.
 dev-coverage = { version = "0.9", path = "../dev-coverage", optional = true }
 dev-security = { version = "0.9", path = "../dev-security", optional = true }
 dev-deps     = { version = "0.9", path = "../dev-deps",     optional = true }
@@ -74,20 +74,18 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 # and the report schema.
 default = ["fixtures", "bench"]
 
-# All sub-crates across both waves.
+# All sub-crates.
 full = [
     "fixtures", "bench", "async", "stress", "chaos",
     "coverage", "security", "deps", "ci", "fuzz", "flaky", "mutate",
 ]
 
-# Per-crate feature flags (first wave).
+# Per-crate feature flags.
 fixtures = ["dep:dev-fixtures"]
 bench    = ["dep:dev-bench"]
 async    = ["dep:dev-async"]
 stress   = ["dep:dev-stress"]
 chaos    = ["dep:dev-chaos"]
-
-# Per-crate feature flags (second wave, new in 0.9.4).
 coverage = ["dep:dev-coverage"]
 security = ["dep:dev-security"]
 deps     = ["dep:dev-deps"]
@@ -95,6 +93,41 @@ ci       = ["dep:dev-ci"]
 fuzz     = ["dep:dev-fuzz"]
 flaky    = ["dep:dev-flaky"]
 mutate   = ["dep:dev-mutate"]
+
+# Examples gated by the corresponding feature flag. `cargo build --examples`
+# (default features) builds only the always-available ones; turning on a
+# feature pulls in the matching example automatically.
+[[example]]
+name = "coverage_basic"
+required-features = ["coverage"]
+
+[[example]]
+name = "security_basic"
+required-features = ["security"]
+
+[[example]]
+name = "deps_basic"
+required-features = ["deps"]
+
+[[example]]
+name = "ci_generate"
+required-features = ["ci"]
+
+[[example]]
+name = "fuzz_basic"
+required-features = ["fuzz"]
+
+[[example]]
+name = "flaky_basic"
+required-features = ["flaky"]
+
+[[example]]
+name = "mutate_basic"
+required-features = ["mutate"]
+
+[[example]]
+name = "full_pipeline"
+required-features = ["coverage", "security", "flaky", "mutate"]
 
 [profile.release]
 opt-level = 3
