@@ -59,8 +59,32 @@ enum Cmd {
     Mutate(MutateArgs),
     /// Detect flaky tests via N-iteration cargo test.
     Flaky(FlakyArgs),
+    /// Async-runtime verification (library-only; prints usage hints).
+    ///
+    /// `dev-async` is a library helper for writing async test code with
+    /// timeouts, deadlock detection, and shutdown probes. This command
+    /// explains the architecture and points at the API.
+    Async(StubArgs),
+    /// Stress / soak testing (library-only; prints usage hints).
+    ///
+    /// `dev-stress` is a library helper for high-load workloads that
+    /// the caller defines via the `Workload` trait. This command
+    /// explains the architecture and points at the API.
+    Stress(StubArgs),
+    /// Fault-injection / chaos testing (library-only; prints usage hints).
+    ///
+    /// `dev-chaos` is a library helper for injecting disk faults,
+    /// network drops, latency, and crash points into your own test
+    /// code via the `FailureSchedule` API. This command explains the
+    /// architecture and points at the API.
+    Chaos(StubArgs),
     /// Generate a GitHub Actions workflow YAML.
     Ci(CiArgs),
+    /// Inspect the local environment: rustc / cargo versions, which
+    /// external tools (cargo-llvm-cov, cargo-audit, cargo-deny,
+    /// cargo-udeps, cargo-outdated, cargo-fuzz, cargo-mutants) are
+    /// installed, and what's missing for each `dev` subcommand.
+    Doctor(DoctorArgs),
     /// Pretty-print a Report from disk.
     Report(ReportArgs),
     /// Diff two reports and show what changed.
@@ -350,6 +374,30 @@ struct ReportArgs {
     common: CommonOutputArgs,
 }
 
+/// Shared args for the library-only stub subcommands
+/// (`dev async`, `dev stress`, `dev chaos`). These three sub-crates
+/// require user-supplied test code to function — there's no generic
+/// "run this against any crate" semantic — so the CLI surface is an
+/// informational stub pointing at the library API.
+#[derive(Debug, Args)]
+struct StubArgs {
+    /// Emit the explainer text as plain JSON for tooling that wants
+    /// to detect "this is a library-only command, here's the API"
+    /// programmatically.
+    #[arg(long)]
+    json: bool,
+}
+
+/// Args for `dev doctor`.
+#[derive(Debug, Args)]
+struct DoctorArgs {
+    /// Emit the environment-check report as JSON instead of the styled
+    /// human view. Useful for CI gates that want to fail the build
+    /// when specific tools are missing.
+    #[arg(long)]
+    json: bool,
+}
+
 #[derive(Debug, Args)]
 struct DiffArgs {
     /// Path to the baseline Report JSON.
@@ -416,6 +464,10 @@ fn main() -> ExitCode {
         Cmd::Diff(a) => run_diff(a),
         Cmd::Html(a) => run_html(a),
         Cmd::Version(a) => run_version(a),
+        Cmd::Async(a) => run_stub_async(a),
+        Cmd::Stress(a) => run_stub_stress(a),
+        Cmd::Chaos(a) => run_stub_chaos(a),
+        Cmd::Doctor(a) => run_doctor(a),
     };
     match res {
         Ok(code) => code,
@@ -999,6 +1051,376 @@ fn run_ci(args: CiArgs) -> CliResult {
     fs::write(&args.output, yaml).map_err(|e| format!("write {}: {e}", args.output.display()))?;
     eprintln!("wrote {}", args.output.display());
     Ok(ExitCode::SUCCESS)
+}
+
+// =============================================================================
+// `dev async` / `dev stress` / `dev chaos` — library-only explainers
+// =============================================================================
+//
+// These three sub-crates are library helpers. They require user-supplied
+// test code (futures, Workload trait impls, FailureSchedule injection)
+// and have no generic "run this against any crate" interpretation. The
+// CLI surface is an informational stub pointing at the library API.
+
+fn run_stub_async(args: StubArgs) -> CliResult {
+    print_library_stub(
+        &StubInfo {
+            verb: "async",
+            crate_name: "dev-async",
+            blurb: "writing async test code with timeouts, deadlock detection, task tracking, and shutdown probes",
+            uses: "tokio (`async` runtime) — but the API is runtime-agnostic; `run_with_timeout`, `join_all_with_timeout`, etc. work with any executor",
+            example: include_str!("../snippets/async_example.txt"),
+        },
+        args.json,
+    );
+    Ok(ExitCode::SUCCESS)
+}
+
+fn run_stub_stress(args: StubArgs) -> CliResult {
+    print_library_stub(
+        &StubInfo {
+            verb: "stress",
+            crate_name: "dev-stress",
+            blurb: "high-load stress and soak workloads, with latency percentiles and structured verdicts",
+            uses: "the `Workload` trait — you implement what gets hammered, dev-stress runs it across threads with timing and stats",
+            example: include_str!("../snippets/stress_example.txt"),
+        },
+        args.json,
+    );
+    Ok(ExitCode::SUCCESS)
+}
+
+fn run_stub_chaos(args: StubArgs) -> CliResult {
+    print_library_stub(
+        &StubInfo {
+            verb: "chaos",
+            crate_name: "dev-chaos",
+            blurb: "fault injection (disk faults, network drops, latency, deterministic crash points) for recovery testing",
+            uses: "a `FailureSchedule` you build, plus wrappers (`ChaosReader`, `ChaosWriter`, `CrashWriter`) that you thread into the code under test",
+            example: include_str!("../snippets/chaos_example.txt"),
+        },
+        args.json,
+    );
+    Ok(ExitCode::SUCCESS)
+}
+
+struct StubInfo {
+    verb: &'static str,
+    crate_name: &'static str,
+    blurb: &'static str,
+    uses: &'static str,
+    example: &'static str,
+}
+
+fn print_library_stub(info: &StubInfo, as_json: bool) {
+    if as_json {
+        let value = serde_json::json!({
+            "command": format!("dev {}", info.verb),
+            "kind": "library-only",
+            "crate": info.crate_name,
+            "purpose": info.blurb,
+            "requires": info.uses,
+            "docs_url": format!("https://crates.io/crates/{}", info.crate_name),
+            "github_url": format!("https://github.com/jamesgober/{}", info.crate_name),
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&value).expect("serialize stub JSON"),
+        );
+        return;
+    }
+
+    let color = io::stdout().is_terminal();
+    println!();
+    println!(
+        "  {}",
+        paint(
+            &format!("dev {}", info.verb),
+            &format!("{C_BOLD}{C_CYAN}"),
+            color,
+        )
+    );
+    println!(
+        "  {}",
+        paint(
+            &format!(
+                "{} is a library helper, not a one-shot CLI runner.",
+                info.crate_name
+            ),
+            C_DIM,
+            color,
+        )
+    );
+    println!();
+    println!("  {} {}", paint("purpose ·", C_BOLD, color), info.blurb);
+    println!("  {} {}", paint("needs   ·", C_BOLD, color), info.uses);
+    println!();
+    println!("  {}", paint("library usage", C_BOLD, color));
+    for line in info.example.lines() {
+        println!("    {}", paint(line, C_DIM, color));
+    }
+    println!();
+    println!(
+        "  {}",
+        paint(
+            &format!(
+                "docs: https://crates.io/crates/{}   ·   source: https://github.com/jamesgober/{}",
+                info.crate_name, info.crate_name,
+            ),
+            C_DIM,
+            color,
+        )
+    );
+    println!();
+}
+
+// =============================================================================
+// `dev doctor` — environment / tool check
+// =============================================================================
+//
+// Probes the local environment: rustc + cargo versions, optional nightly
+// availability, every external cargo subcommand the CLI shells out to.
+// Reports green / red for each, and ends with grouped copy-paste install
+// commands for the missing pieces.
+
+/// `(probe-command, args, the `dev` subcommand that needs it, optional
+/// install hint suffix flagging nightly).
+struct ExternalTool {
+    binary: &'static str,
+    needed_by: &'static str,
+    nightly: bool,
+}
+
+const EXTERNAL_TOOLS: &[ExternalTool] = &[
+    ExternalTool {
+        binary: "cargo-llvm-cov",
+        needed_by: "dev coverage",
+        nightly: false,
+    },
+    ExternalTool {
+        binary: "cargo-audit",
+        needed_by: "dev audit",
+        nightly: false,
+    },
+    ExternalTool {
+        binary: "cargo-deny",
+        needed_by: "dev audit",
+        nightly: false,
+    },
+    ExternalTool {
+        binary: "cargo-udeps",
+        needed_by: "dev deps",
+        nightly: true,
+    },
+    ExternalTool {
+        binary: "cargo-outdated",
+        needed_by: "dev deps",
+        nightly: false,
+    },
+    ExternalTool {
+        binary: "cargo-fuzz",
+        needed_by: "dev fuzz",
+        nightly: true,
+    },
+    ExternalTool {
+        binary: "cargo-mutants",
+        needed_by: "dev mutate",
+        nightly: false,
+    },
+];
+
+fn run_doctor(args: DoctorArgs) -> CliResult {
+    let rustc_version = probe_version("rustc", &["--version"]);
+    let cargo_version = probe_version("cargo", &["--version"]);
+    let nightly_available =
+        probe_version("rustup", &["run", "nightly", "rustc", "--version"]).is_some();
+
+    let tool_results: Vec<(&ExternalTool, Option<String>)> = EXTERNAL_TOOLS
+        .iter()
+        .map(|t| (t, probe_version(t.binary, &["--version"])))
+        .collect();
+
+    if args.json {
+        let tools_json: Vec<serde_json::Value> = tool_results
+            .iter()
+            .map(|(t, ver)| {
+                serde_json::json!({
+                    "binary": t.binary,
+                    "needed_by": t.needed_by,
+                    "installed": ver.is_some(),
+                    "version": ver,
+                    "nightly": t.nightly,
+                })
+            })
+            .collect();
+        let value = serde_json::json!({
+            "toolchain": {
+                "rustc": rustc_version,
+                "cargo": cargo_version,
+                "nightly_available": nightly_available,
+            },
+            "external_tools": tools_json,
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&value).expect("serialize doctor JSON"),
+        );
+        return Ok(if tool_results.iter().all(|(_, v)| v.is_some()) {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::from(1)
+        });
+    }
+
+    let color = io::stdout().is_terminal();
+    println!();
+    println!(
+        "  {}",
+        paint(
+            "dev · environment check",
+            &format!("{C_BOLD}{C_CYAN}"),
+            color
+        )
+    );
+    println!();
+    println!("  {}", paint("toolchain", C_BOLD, color));
+    print_doctor_row("rustc", rustc_version.as_deref(), None, color);
+    print_doctor_row("cargo", cargo_version.as_deref(), None, color);
+    print_doctor_row(
+        "rustup nightly",
+        if nightly_available {
+            Some("available")
+        } else {
+            None
+        },
+        if nightly_available {
+            None
+        } else {
+            Some("rustup toolchain install nightly")
+        },
+        color,
+    );
+    println!();
+    println!(
+        "  {}",
+        paint(
+            "built-in commands (no external install needed)",
+            C_BOLD,
+            color
+        )
+    );
+    println!(
+        "    {} dev test · clippy · check · bench · ci · report · diff · html · flaky · version · async · stress · chaos · doctor",
+        paint("✓", C_GREEN, color),
+    );
+    println!();
+    println!("  {}", paint("external tools", C_BOLD, color));
+    let bin_w = EXTERNAL_TOOLS
+        .iter()
+        .map(|t| t.binary.len())
+        .max()
+        .unwrap_or(16);
+    let mut missing_stable: Vec<&str> = Vec::new();
+    let mut missing_nightly: Vec<&str> = Vec::new();
+    for (tool, version) in &tool_results {
+        let hint = if version.is_none() {
+            if tool.nightly {
+                missing_nightly.push(tool.binary);
+                Some(format!("cargo install {}   [needs nightly]", tool.binary))
+            } else {
+                missing_stable.push(tool.binary);
+                Some(format!("cargo install {}", tool.binary))
+            }
+        } else {
+            None
+        };
+        print_doctor_row(
+            &format!(
+                "{:<width$}  ({})",
+                tool.binary,
+                tool.needed_by,
+                width = bin_w
+            ),
+            version.as_deref(),
+            hint.as_deref(),
+            color,
+        );
+    }
+    println!();
+
+    let ready = tool_results.iter().filter(|(_, v)| v.is_some()).count();
+    let total = tool_results.len();
+    let needs_install = total - ready;
+    println!(
+        "  {} {} tool{} ready, {} tool{} need install",
+        paint("summary ·", C_BOLD, color),
+        ready,
+        if ready == 1 { "" } else { "s" },
+        needs_install,
+        if needs_install == 1 { "" } else { "s" },
+    );
+
+    if !missing_stable.is_empty() {
+        println!();
+        println!(
+            "  {} cargo install {}",
+            paint("→", C_GREEN, color),
+            missing_stable.join(" "),
+        );
+    }
+    if !missing_nightly.is_empty() {
+        if !nightly_available {
+            println!(
+                "  {} rustup toolchain install nightly",
+                paint("→", C_YELLOW, color),
+            );
+        }
+        println!(
+            "  {} cargo install {}",
+            paint("→", C_YELLOW, color),
+            missing_nightly.join(" "),
+        );
+    }
+    println!();
+
+    Ok(if needs_install == 0 {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(1)
+    })
+}
+
+fn probe_version(bin: &str, args: &[&str]) -> Option<String> {
+    let out = std::process::Command::new(bin).args(args).output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
+}
+
+fn print_doctor_row(label: &str, value: Option<&str>, hint: Option<&str>, color: bool) {
+    match value {
+        Some(v) => println!(
+            "    {} {:<32} {}",
+            paint("✓", C_GREEN, color),
+            label,
+            paint(v, C_DIM, color),
+        ),
+        None => {
+            let hint_part = hint.map(|h| format!("  → {h}")).unwrap_or_default();
+            println!(
+                "    {} {:<32}{}",
+                paint("✗", C_RED, color),
+                label,
+                paint(&hint_part, C_DIM, color),
+            );
+        }
+    }
 }
 
 // =============================================================================

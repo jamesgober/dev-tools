@@ -1,0 +1,17 @@
+use dev_stress::{StressRun, Workload};
+
+struct ParseWorkload;
+impl Workload for ParseWorkload {
+    fn name(&self) -> &str { "parse_request" }
+    fn run(&self) -> Result<(), String> {
+        my_parser::parse(SAMPLE_INPUT).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+}
+
+let result = StressRun::new("my-crate", "0.1.0")
+    .threads(8)
+    .iterations(100_000)
+    .execute(&ParseWorkload)?;
+
+println!("ops/sec: {:.0}", result.ops_per_sec());
