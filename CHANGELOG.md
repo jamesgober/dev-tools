@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+Exploratory CLI surface expansion. Not yet released; landed on `main`
+for iteration. Will fold into the next versioned release once the
+ergonomics settle.
+
+### Added
+
+- **`dev doctor`** — environment / tool check. Probes `rustc`, `cargo`, `rustup nightly` availability, and every external cargo subcommand the CLI shells out to (`cargo-llvm-cov`, `cargo-audit`, `cargo-deny`, `cargo-udeps`, `cargo-outdated`, `cargo-fuzz`, `cargo-mutants`). Reports each as green-check + version or red-X + install command. Ends with grouped copy-paste install lines for stable vs nightly. `--json` flag emits the same data as a structured object for CI gates that want to fail when specific tools are missing.
+- **`dev async`** — informational stub. The `dev-async` sub-crate is a library helper for writing async test code (timeouts, deadlock detection, task tracking, shutdown probes); it requires user-supplied futures, so there's no generic "run this against any crate" semantic. The CLI now prints a clear architecture explanation + an example library-usage snippet + a link to the crate docs instead of returning "unrecognized subcommand".
+- **`dev stress`** — same shape as `dev async`. `dev-stress` requires the user to implement the `Workload` trait. The stub explains, shows an example, links the crate.
+- **`dev chaos`** — same shape. `dev-chaos` requires `FailureSchedule` construction + injection into the code under test. Stub explains, example, link.
+- All four new stubs accept `--json` to emit machine-readable variants of the explainer text.
+
+### Notes
+
+- These four commands move the CLI surface from 15 subcommands to **19**. `dev --help` now lists the full set.
+- The `dev stress` / `dev chaos` / `dev async` commands are intentionally stubs at this stage. Future iteration may add canned modes (`dev stress --hammer`, `dev async --probe`, etc.) once the right defaults are clear. They're parked here as "good ideas that will likely grow and spawn new good ideas" rather than rushed into a release.
+- `dev doctor` is the only one of the four with a full implementation — it's complete and ready to use today; subsequent releases may add more probes (workspace detection, lock-file freshness, dev-tools-itself-out-of-date warnings).
+- No version bump. No `Cargo.toml` change. No new dependencies. Library API surface untouched. Builds and tests with `--all-features` clean.
+
 ## [0.9.9] - 2026-05-12
 
 Pre-release audit follow-up. Documentation-only patch — no code or

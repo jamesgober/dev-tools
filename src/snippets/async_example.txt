@@ -1,0 +1,12 @@
+use dev_async::{run_with_timeout, AsyncProducer};
+use std::time::Duration;
+
+#[tokio::test]
+async fn no_hang() {
+    let check = run_with_timeout(
+        "fetch_user",
+        Duration::from_secs(5),
+        async { fetch_user(42).await }
+    ).await;
+    assert!(matches!(check.verdict, dev_report::Verdict::Pass));
+}

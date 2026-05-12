@@ -1,0 +1,12 @@
+use dev_chaos::{FailureMode, FailureSchedule, io::ChaosWriter};
+use std::io::Write;
+
+let schedule = FailureSchedule::on_attempts([3, 7], FailureMode::PartialWrite);
+let mut sink = ChaosWriter::new(Vec::new(), schedule);
+
+for i in 0..10 {
+    let _ = sink.write_all(format!("frame-{i}").as_bytes());
+}
+
+// Then assert that your code recovered the data correctly despite
+// the partial writes injected at attempts 3 and 7.
