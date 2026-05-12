@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-05-12
+
 ### Added
 
 - New `dev_tools::producers` module shipping three reusable `Producer` implementations driven by `cargo` subprocesses:
@@ -21,6 +23,8 @@
 - `serde` and `serde_json` are now direct dependencies of `dev-tools` (previously transitive via `dev-report`). Used by the `producers` module to parse `cargo --message-format=json` output.
 - `chrono` added as a `[dev-dependencies]` entry (also previously transitive) for deterministic timestamps in the `html` module's tests.
 - CI: `actions/checkout` bumped to `v5` (was `v4`); removes Node 20 deprecation warnings.
+
+[0.9.3]: https://github.com/jamesgober/dev-tools/releases/tag/v0.9.3
 
 ## [0.9.2] - 2026-05-10
 
@@ -100,5 +104,5 @@ Name-claim release. Coordinated v0.1.0 of all sibling crates:
 `dev-report`, `dev-fixtures`, `dev-bench`, `dev-async`,
 `dev-stress`, `dev-chaos`.
 
-[Unreleased]: https://github.com/jamesgober/dev-tools/compare/v0.9.2...HEAD
+[Unreleased]: https://github.com/jamesgober/dev-tools/compare/v0.9.3...HEAD
 [0.1.0]: https://github.com/jamesgober/dev-tools/releases/tag/v0.1.0

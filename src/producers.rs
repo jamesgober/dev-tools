@@ -153,8 +153,8 @@ impl ClippyProducer {
 
 impl Producer for ClippyProducer {
     fn produce(&self) -> Report {
-        let mut report = Report::new(&self.subject, &self.subject_version)
-            .with_producer("cargo-clippy");
+        let mut report =
+            Report::new(&self.subject, &self.subject_version).with_producer("cargo-clippy");
         run_message_format_json(&self.workdir, "clippy", &mut report);
         report
     }
@@ -241,11 +241,7 @@ pub fn cargo_check_producer(
     }
 }
 
-fn run_message_format_json(
-    workdir: &Option<PathBuf>,
-    subcommand: &str,
-    report: &mut Report,
-) {
+fn run_message_format_json(workdir: &Option<PathBuf>, subcommand: &str, report: &mut Report) {
     let output = match run_cargo(workdir, &[subcommand, "--message-format=json"]) {
         Ok(o) => o,
         Err(c) => {
@@ -359,10 +355,7 @@ struct CapturedOutput {
     combined: String,
 }
 
-fn run_cargo(
-    workdir: &Option<PathBuf>,
-    args: &[&str],
-) -> Result<CapturedOutput, Box<CheckResult>> {
+fn run_cargo(workdir: &Option<PathBuf>, args: &[&str]) -> Result<CapturedOutput, Box<CheckResult>> {
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let mut cmd = Command::new(&cargo);
     cmd.args(args);

@@ -738,6 +738,10 @@ mod tests {
         // Smoke check: shouldn't be larger than ~64 KiB for a small report.
         let html = multi_report_to_html(&frozen_multi());
         assert!(html.len() < 64 * 1024, "got {} bytes", html.len());
-        assert!(html.len() > 1_000, "got {} bytes (likely truncated)", html.len());
+        assert!(
+            html.len() > 1_000,
+            "got {} bytes (likely truncated)",
+            html.len()
+        );
     }
 }
