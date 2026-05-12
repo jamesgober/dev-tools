@@ -78,7 +78,7 @@ Pick features by what you want to verify:
 
 ```toml
 [dependencies]
-dev-tools = "0.9.6"
+dev-tools = "0.9.7"
 ```
 
 You get: `report` (always), `fixtures`, `bench`.
@@ -87,7 +87,7 @@ You get: `report` (always), `fixtures`, `bench`.
 
 ```toml
 [dependencies]
-dev-tools = { version = "0.9.6", default-features = false }
+dev-tools = { version = "0.9.7", default-features = false }
 ```
 
 You get: `report` only. No `fixtures`, no `bench`. Ideal when you
@@ -99,32 +99,32 @@ Pick exactly what you need. Examples:
 
 ```toml
 # Async-heavy service: schema + async helpers, no fixtures/bench.
-dev-tools = { version = "0.9.6", default-features = false, features = ["async"] }
+dev-tools = { version = "0.9.7", default-features = false, features = ["async"] }
 ```
 
 ```toml
 # Defaults plus async (additive).
-dev-tools = { version = "0.9.6", features = ["async"] }
+dev-tools = { version = "0.9.7", features = ["async"] }
 ```
 
 ```toml
 # Defaults plus chaos and stress.
-dev-tools = { version = "0.9.6", features = ["chaos", "stress"] }
+dev-tools = { version = "0.9.7", features = ["chaos", "stress"] }
 ```
 
 ```toml
 # Library shipping to production: coverage + security + deps + flaky.
-dev-tools = { version = "0.9.6", features = ["coverage", "security", "deps", "flaky"] }
+dev-tools = { version = "0.9.7", features = ["coverage", "security", "deps", "flaky"] }
 ```
 
 ```toml
 # Mutation-testing + fuzz harness with default test environments.
-dev-tools = { version = "0.9.6", features = ["mutate", "fuzz"] }
+dev-tools = { version = "0.9.7", features = ["mutate", "fuzz"] }
 ```
 
 ```toml
 # Everything (CI verification rigs, AI agents that drive the whole suite).
-dev-tools = { version = "0.9.6", features = ["full"] }
+dev-tools = { version = "0.9.7", features = ["full"] }
 ```
 
 ### Toggle features off
@@ -134,7 +134,7 @@ dev-tools = { version = "0.9.6", features = ["full"] }
 
 ```toml
 # Async + chaos, NO fixtures/bench.
-dev-tools = { version = "0.9.6", default-features = false, features = ["async", "chaos"] }
+dev-tools = { version = "0.9.7", default-features = false, features = ["async", "chaos"] }
 ```
 
 ## API map

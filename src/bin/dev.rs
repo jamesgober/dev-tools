@@ -22,6 +22,7 @@ use dev_tools::report::{Diff, MultiReport, Report, Verdict};
 #[command(
     name = "dev",
     version,
+    propagate_version = true,
     about = "Rust verification toolkit. Tests, benches, coverage, fuzz, audit, mutation, more.",
     long_about = "The `dev` CLI is the umbrella entry point for the dev-* verification \
                   collection. Every subcommand drives one verification dimension and produces \
@@ -66,6 +67,11 @@ enum Cmd {
     Diff(DiffArgs),
     /// Render a Report or MultiReport to a self-contained HTML file.
     Html(HtmlArgs),
+    /// Print the version of `dev` plus every sub-crate it wraps.
+    ///
+    /// `dev version` lists every component. `dev version <name>` prints
+    /// just one (e.g. `dev version coverage` → `dev-coverage 0.9.1`).
+    Version(VersionArgs),
 }
 
 // =============================================================================
@@ -184,6 +190,7 @@ struct BenchArgs {
 }
 
 #[derive(Debug, Args)]
+#[command(version = "0.9.1")]
 struct CoverageArgs {
     /// Minimum line coverage % required to pass (e.g. `--threshold 80`).
     /// Below this, the produced CheckResult is `Fail`.
@@ -203,6 +210,7 @@ struct CoverageArgs {
 }
 
 #[derive(Debug, Args)]
+#[command(version = "0.9.2")]
 struct AuditArgs {
     /// What to check: `all` (audit + deny), `audit` only, or `deny` only.
     #[arg(long, short = 's', value_enum, default_value_t = AuditScopeArg::All)]
@@ -227,6 +235,7 @@ enum AuditScopeArg {
 }
 
 #[derive(Debug, Args)]
+#[command(version = "0.9.1")]
 struct DepsArgs {
     /// Only check udeps (unused). Skip cargo-outdated.
     #[arg(long)]
@@ -241,6 +250,7 @@ struct DepsArgs {
 }
 
 #[derive(Debug, Args)]
+#[command(version = "0.9.1")]
 struct FuzzArgs {
     /// Name of the fuzz target to run.
     target: String,
@@ -258,6 +268,7 @@ struct FuzzArgs {
 }
 
 #[derive(Debug, Args)]
+#[command(version = "0.9.2")]
 struct MutateArgs {
     /// Minimum kill rate % required to pass (default 70).
     #[arg(long, short = 't', default_value_t = 70.0)]
@@ -276,6 +287,7 @@ struct MutateArgs {
 }
 
 #[derive(Debug, Args)]
+#[command(version = "0.9.1")]
 struct FlakyArgs {
     /// Number of test iterations to run.
     #[arg(long, short = 'n', default_value_t = 10)]
@@ -298,6 +310,7 @@ struct FlakyArgs {
 }
 
 #[derive(Debug, Args)]
+#[command(version = "0.9.2")]
 struct CiArgs {
     /// Where to write the workflow file. `-` writes to stdout.
     #[arg(long, short = 'o', default_value = ".github/workflows/ci.yml")]
@@ -366,6 +379,15 @@ struct HtmlArgs {
     out: Option<PathBuf>,
 }
 
+#[derive(Debug, Args)]
+struct VersionArgs {
+    /// Optional component name: `report`, `tools`, `fixtures`, `bench`,
+    /// `async`, `stress`, `chaos`, `coverage`, `security`, `deps`, `ci`,
+    /// `fuzz`, `flaky`, `mutate`. With no argument, prints the full
+    /// component table.
+    component: Option<String>,
+}
+
 // =============================================================================
 // Entry point
 // =============================================================================
@@ -387,6 +409,7 @@ fn main() -> ExitCode {
         Cmd::Report(a) => run_report(a),
         Cmd::Diff(a) => run_diff(a),
         Cmd::Html(a) => run_html(a),
+        Cmd::Version(a) => run_version(a),
     };
     match res {
         Ok(code) => code,
@@ -801,6 +824,96 @@ fn run_flaky(args: FlakyArgs) -> CliResult {
     let report = result.into_report();
     render_report(&report, &args.common)?;
     Ok(exit_for_verdict(report.overall_verdict()))
+}
+
+// =============================================================================
+// `dev version` — print component versions
+// =============================================================================
+//
+// The `SIBLINGS` table mirrors the version pins in this crate's
+// `Cargo.toml`. Keep it in sync when bumping a sibling; the table is
+// what `dev version` reports, not the actual compiled-in version.
+
+const SIBLINGS: &[(&str, &str, &str)] = &[
+    // (short alias,  crate name,     version pinned in Cargo.toml)
+    ("report",   "dev-report",   "0.9.6"),
+    ("tools",    "dev-tools",    env!("CARGO_PKG_VERSION")),
+    ("fixtures", "dev-fixtures", "0.9.4"),
+    ("bench",    "dev-bench",    "0.9.4"),
+    ("async",    "dev-async",    "0.9.4"),
+    ("stress",   "dev-stress",   "0.9.4"),
+    ("chaos",    "dev-chaos",    "0.9.4"),
+    ("coverage", "dev-coverage", "0.9.1"),
+    ("security", "dev-security", "0.9.2"),
+    ("deps",     "dev-deps",     "0.9.1"),
+    ("ci",       "dev-ci",       "0.9.2"),
+    ("fuzz",     "dev-fuzz",     "0.9.1"),
+    ("flaky",    "dev-flaky",    "0.9.1"),
+    ("mutate",   "dev-mutate",   "0.9.2"),
+];
+
+fn run_version(args: VersionArgs) -> CliResult {
+    let color = io::stdout().is_terminal();
+
+    if let Some(name) = args.component.as_deref() {
+        let key = name.trim().to_ascii_lowercase();
+        // Accept either the short alias (`coverage`) or the full crate
+        // name (`dev-coverage`). Trim the `dev-` prefix on the way in
+        // so both spellings resolve to the same row.
+        let normalized = key.strip_prefix("dev-").unwrap_or(&key);
+        let row = SIBLINGS
+            .iter()
+            .find(|(alias, _, _)| *alias == normalized)
+            .ok_or_else(|| {
+                format!(
+                    "unknown component: {name:?}. Known: {}",
+                    SIBLINGS
+                        .iter()
+                        .map(|(a, _, _)| *a)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            })?;
+        println!("{} {}", row.1, row.2);
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    let dev_version = env!("CARGO_PKG_VERSION");
+    println!();
+    println!(
+        "  {}",
+        paint(
+            &format!("dev {dev_version}"),
+            &format!("{C_BOLD}{C_CYAN}"),
+            color
+        )
+    );
+    println!(
+        "  {}",
+        paint("the Rust verification toolkit CLI", C_DIM, color)
+    );
+    println!();
+    println!("  {}", paint("components", C_BOLD, color));
+    let crate_w = SIBLINGS.iter().map(|(_, c, _)| c.len()).max().unwrap_or(12);
+    for (_, crate_name, version) in SIBLINGS {
+        println!(
+            "    {:<width$}   {}",
+            crate_name,
+            paint(version, C_GREEN, color),
+            width = crate_w,
+        );
+    }
+    println!();
+    println!(
+        "  {}",
+        paint(
+            "tip: `dev version <name>` prints just one component",
+            C_DIM,
+            color
+        )
+    );
+    println!();
+    Ok(ExitCode::SUCCESS)
 }
 
 // =============================================================================
