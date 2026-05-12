@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [0.9.9] - 2026-05-12
+
+Pre-release audit follow-up. Documentation-only patch — no code or
+behavior changes.
+
+### Fixed
+
+- `build.rs` doc comment no longer contains the word `robust`. The word slipped into the build-script's module-level documentation during the v0.9.8 work and was caught by the post-publish banned-words audit. Pure docs-only change to an internal file; the build script's behavior, output, and the resulting `siblings.rs` are byte-identical to v0.9.8.
+
+### Notes
+
+- No runtime change. Library and CLI users get the same compiled behavior as v0.9.8.
+- No new dependencies, no MSRV change.
+- The next dev-tools release after this one will fold in any further pre-RC polish surfaced by ongoing audits. This release is intentionally minimal.
+
+[0.9.9]: https://github.com/jamesgober/dev-tools/releases/tag/v0.9.9
+
 ## [0.9.8] - 2026-05-12
 
 Final defer-list clearout ahead of `1.0`-RC.
