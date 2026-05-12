@@ -71,7 +71,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "dev-async"
-version = "0.9.2"
+version = "0.9.3"
 dependencies = [
  "dev-report",
  "tokio",
@@ -79,7 +79,7 @@ dependencies = [
 
 [[package]]
 name = "dev-bench"
-version = "0.9.2"
+version = "0.9.3"
 dependencies = [
  "dev-report",
  "serde",
@@ -88,14 +88,14 @@ dependencies = [
 
 [[package]]
 name = "dev-chaos"
-version = "0.9.2"
+version = "0.9.3"
 dependencies = [
  "dev-report",
 ]
 
 [[package]]
 name = "dev-fixtures"
-version = "0.9.2"
+version = "0.9.3"
 dependencies = [
  "dev-report",
  "tempfile",
@@ -112,7 +112,7 @@ dependencies = [
 
 [[package]]
 name = "dev-stress"
-version = "0.9.2"
+version = "0.9.3"
 dependencies = [
  "dev-report",
 ]
