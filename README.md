@@ -59,7 +59,7 @@ Pick features by what you want to verify:
 
 ```toml
 [dependencies]
-dev-tools = "0.9.2"
+dev-tools = "0.9.3"
 ```
 
 You get: `report` (always), `fixtures`, `bench`.
@@ -68,7 +68,7 @@ You get: `report` (always), `fixtures`, `bench`.
 
 ```toml
 [dependencies]
-dev-tools = { version = "0.9.2", default-features = false }
+dev-tools = { version = "0.9.3", default-features = false }
 ```
 
 You get: `report` only. No `fixtures`, no `bench`. Ideal when you
@@ -80,22 +80,22 @@ Pick exactly what you need. Examples:
 
 ```toml
 # Async-heavy service: schema + async helpers, no fixtures/bench.
-dev-tools = { version = "0.9.2", default-features = false, features = ["async"] }
+dev-tools = { version = "0.9.3", default-features = false, features = ["async"] }
 ```
 
 ```toml
 # Defaults plus async (additive).
-dev-tools = { version = "0.9.2", features = ["async"] }
+dev-tools = { version = "0.9.3", features = ["async"] }
 ```
 
 ```toml
 # Defaults plus chaos and stress.
-dev-tools = { version = "0.9.2", features = ["chaos", "stress"] }
+dev-tools = { version = "0.9.3", features = ["chaos", "stress"] }
 ```
 
 ```toml
 # Everything (CI verification rigs, AI agents that drive the whole suite).
-dev-tools = { version = "0.9.2", features = ["full"] }
+dev-tools = { version = "0.9.3", features = ["full"] }
 ```
 
 ### Toggle features off
@@ -105,7 +105,7 @@ dev-tools = { version = "0.9.2", features = ["full"] }
 
 ```toml
 # Async + chaos, NO fixtures/bench.
-dev-tools = { version = "0.9.2", default-features = false, features = ["async", "chaos"] }
+dev-tools = { version = "0.9.3", default-features = false, features = ["async", "chaos"] }
 ```
 
 ## API map
@@ -325,7 +325,7 @@ happen ahead of `1.0`. The schema (`dev-report`) stays at
 
 Sub-crate dependency constraints are pinned at `^0.9` (any 0.9.x).
 The umbrella crate does not require a coordinated patch release of
-the sibling crates; you can safely use `dev-tools 0.9.2` alongside
+the sibling crates; you can safely use `dev-tools 0.9.3` alongside
 sibling crates at any 0.9.x version.
 
 ## Minimum supported Rust version
