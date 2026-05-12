@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [0.9.7] - 2026-05-12
+
+CLI version surface.
+
+### Added
+
+- New `dev version` subcommand prints a stylized component table — the dev binary version on top, every sub-crate listed by name with its compiled-in version, plus a tip pointing at the `dev version <name>` filtered form.
+- `dev version <name>` prints just one component (e.g. `dev version coverage` → `dev-coverage 0.9.1`). Accepts either the short alias (`coverage`) or the full crate name (`dev-coverage`); both resolve to the same row. Unknown names error with a list of valid options.
+- Each subprocess-wrapping subcommand now reports its underlying sub-crate's version through `--version`: `dev coverage --version` → `dev-coverage 0.9.1`, `dev audit --version` → `dev-audit 0.9.2`, `dev ci --version` → `dev-ci 0.9.2`, etc. Implemented via per-subcommand `#[command(version = "...")]` overrides on the args structs.
+- `--version` / `-V` is now propagated to every subcommand via clap's `propagate_version = true`, so the flag is uniformly available everywhere instead of root-only.
+
+### Internal
+
+- New `SIBLINGS` const-table in `src/bin/dev.rs` keeps the sub-crate version map in one place. Hand-maintained; mirrors the `^0.9` pins in `Cargo.toml`. Doc-comment flags the keep-in-sync requirement.
+
+[0.9.7]: https://github.com/jamesgober/dev-tools/releases/tag/v0.9.7
+
 ## [0.9.6] - 2026-05-12
 
 The `dev` CLI lands. One binary, one subcommand per verification dimension.
