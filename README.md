@@ -78,7 +78,7 @@ Pick features by what you want to verify:
 
 ```toml
 [dependencies]
-dev-tools = "0.9.5"
+dev-tools = "0.9.6"
 ```
 
 You get: `report` (always), `fixtures`, `bench`.
@@ -87,7 +87,7 @@ You get: `report` (always), `fixtures`, `bench`.
 
 ```toml
 [dependencies]
-dev-tools = { version = "0.9.5", default-features = false }
+dev-tools = { version = "0.9.6", default-features = false }
 ```
 
 You get: `report` only. No `fixtures`, no `bench`. Ideal when you
@@ -99,32 +99,32 @@ Pick exactly what you need. Examples:
 
 ```toml
 # Async-heavy service: schema + async helpers, no fixtures/bench.
-dev-tools = { version = "0.9.5", default-features = false, features = ["async"] }
+dev-tools = { version = "0.9.6", default-features = false, features = ["async"] }
 ```
 
 ```toml
 # Defaults plus async (additive).
-dev-tools = { version = "0.9.5", features = ["async"] }
+dev-tools = { version = "0.9.6", features = ["async"] }
 ```
 
 ```toml
 # Defaults plus chaos and stress.
-dev-tools = { version = "0.9.5", features = ["chaos", "stress"] }
+dev-tools = { version = "0.9.6", features = ["chaos", "stress"] }
 ```
 
 ```toml
 # Library shipping to production: coverage + security + deps + flaky.
-dev-tools = { version = "0.9.5", features = ["coverage", "security", "deps", "flaky"] }
+dev-tools = { version = "0.9.6", features = ["coverage", "security", "deps", "flaky"] }
 ```
 
 ```toml
 # Mutation-testing + fuzz harness with default test environments.
-dev-tools = { version = "0.9.5", features = ["mutate", "fuzz"] }
+dev-tools = { version = "0.9.6", features = ["mutate", "fuzz"] }
 ```
 
 ```toml
 # Everything (CI verification rigs, AI agents that drive the whole suite).
-dev-tools = { version = "0.9.5", features = ["full"] }
+dev-tools = { version = "0.9.6", features = ["full"] }
 ```
 
 ### Toggle features off
@@ -134,7 +134,7 @@ dev-tools = { version = "0.9.5", features = ["full"] }
 
 ```toml
 # Async + chaos, NO fixtures/bench.
-dev-tools = { version = "0.9.5", default-features = false, features = ["async", "chaos"] }
+dev-tools = { version = "0.9.6", default-features = false, features = ["async", "chaos"] }
 ```
 
 ## API map
@@ -385,22 +385,104 @@ its own work against. The output is the same.
 
 ## Command-line tools
 
-Most of the suite is library-only — you drive it from a `tests/` file
-or a custom binary, and consume the resulting JSON. One sub-crate ships
-an actual CLI:
+The collection ships two CLI binaries — the unified `dev` umbrella
+and the older single-purpose `dev-ci` workflow generator.
 
-### `dev-ci` — generate a calibrated CI workflow
+### `dev` — unified verification CLI
 
-[`dev-ci`](https://crates.io/crates/dev-ci) emits a GitHub Actions
-workflow YAML tuned to the dev-* features you enable. Install once:
+One binary, one subcommand per verification dimension. Every command
+drives the corresponding sub-crate's library API and emits a structured
+[`dev-report`](https://crates.io/crates/dev-report) `Report`, rendered
+to the terminal by default or to a file in JSON / markdown / SARIF /
+JUnit XML.
+
+Install with the `cli` feature:
+
+```bash
+cargo install dev-tools --features cli
+```
+
+#### Commands
+
+```text
+dev test               cargo test, parsed → Report
+dev test --full        full stack: test + clippy + check
+dev clippy             cargo clippy → Report
+dev check              cargo check → Report
+dev bench              cargo bench wrapper
+
+dev coverage           cargo-llvm-cov + optional --threshold
+dev audit              cargo-audit + cargo-deny
+dev deps               cargo-udeps + cargo-outdated
+dev fuzz <target>      cargo-fuzz with --budget secs
+dev mutate             cargo-mutants with --threshold kill-rate
+dev flaky              N-iteration cargo test, classified
+
+dev ci                 generate GitHub Actions workflow YAML
+dev report <path>      pretty-print a Report from disk
+dev diff <a> <b>       diff two reports
+dev html <path>        render to a self-contained HTML file
+```
+
+#### Common flags
+
+Every Report-producing command accepts:
+
+```text
+--out PATH            write output to file (default: stdout)
+--format FMT          terminal | json | markdown | sarif | junit
+--subject NAME        subject name (default: from Cargo.toml)
+--subject-version V   subject version (default: from Cargo.toml)
+--in DIR              working directory (default: cwd)
+--quiet, -q           suppress terminal output, exit-code only
+```
+
+#### Example session
+
+```bash
+# Run the basic test pass with the polished terminal output
+dev test
+
+# Run the full stack, save the MultiReport for later diffing
+dev test --full --out baseline.json --format json
+
+# Re-run later, diff against the baseline
+dev test --full --out current.json --format json
+dev diff baseline.json current.json
+
+# Coverage with a 80% line threshold
+dev coverage --threshold 80
+
+# Security audit, policy only (cargo-deny), against a custom deny.toml
+dev audit --scope policy --deny-config ./deny.toml
+
+# Fuzz a specific target for 5 minutes with thread sanitizer
+dev fuzz parser_target --budget 300 --sanitizer thread
+
+# Mutation testing, require 70% kill-rate
+dev mutate --threshold 70
+
+# Render a saved report to HTML for sharing
+dev html ./report.json --out report.html
+```
+
+#### Exit codes
+
+| Code | Meaning |
+|:---:|---|
+| `0` | All checks passed (or skipped). |
+| `1` | At least one check failed or warned, or the diff is non-clean. |
+| `2` | CLI / I/O error (bad args, file read failure, subprocess spawn failure). The reason is printed to stderr. |
+
+### `dev-ci` — standalone CI workflow generator
+
+[`dev-ci`](https://crates.io/crates/dev-ci) is the same workflow
+generator that powers `dev ci` — installed separately for users who
+only want the CI generator. The flag surface is identical.
 
 ```bash
 cargo install dev-ci
-```
 
-Quick examples:
-
-```bash
 # Default: test job on ubuntu-latest, written to .github/workflows/ci.yml
 dev-ci generate
 
@@ -410,21 +492,12 @@ dev-ci generate \
     --with clippy,fmt,docs,msrv \
     --msrv 1.85
 
-# Project that uses path-deps to sibling repos
-dev-ci generate \
-    --features fixtures,bench,coverage \
-    --path-dep dev-report=https://github.com/jamesgober/dev-report.git \
-    --path-dep dev-fixtures=https://github.com/jamesgober/dev-fixtures.git
-
 # Preview without writing
 dev-ci generate --print
 ```
 
-The generator stays in sync with the dev-* feature set — turning on
-`coverage` adds an `llvm-cov` job, `security` adds a `cargo-audit`
-job, `mutate` adds a `cargo-mutants` job, and so on. See
-[`dev-ci`'s README](https://github.com/jamesgober/dev-ci#readme) for
-the full reference.
+See [`dev-ci`'s README](https://github.com/jamesgober/dev-ci#readme)
+for the full reference.
 
 ## Status
 

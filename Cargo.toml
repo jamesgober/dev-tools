@@ -1,6 +1,6 @@
 [package]
 name = "dev-tools"
-version = "0.9.5"
+version = "0.9.6"
 edition = "2021"
 rust-version = "1.85"
 readme = "README.md"
@@ -45,6 +45,10 @@ dev-report = { version = "0.9", path = "../dev-report" }
 # directly here so dev-tools doesn't rely on dev-report's internals.
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+# Pulled in by the `cli` feature for the `dev` binary. Library
+# consumers don't pay for clap's compile time unless they opt in.
+clap = { version = "4", features = ["derive"], optional = true }
 
 # Optional sub-crates pulled in by feature flags.
 dev-fixtures = { version = "0.9", path = "../dev-fixtures", optional = true }
@@ -93,6 +97,29 @@ ci       = ["dep:dev-ci"]
 fuzz     = ["dep:dev-fuzz"]
 flaky    = ["dep:dev-flaky"]
 mutate   = ["dep:dev-mutate"]
+
+# Builds the `dev` CLI binary. Pulls in every sub-crate plus clap so
+# a single `cargo install dev-tools --features cli` gets users every
+# verification dimension as a subcommand. The `dev-report/*` entries
+# enable the renderer features on the upstream crate so `dev report
+# --format markdown|sarif|junit|terminal` all work.
+cli = [
+    "dep:clap",
+    "coverage", "security", "deps", "ci",
+    "fuzz", "flaky", "mutate", "bench",
+    "dev-report/terminal",
+    "dev-report/markdown",
+    "dev-report/sarif",
+    "dev-report/junit",
+]
+
+# The `dev` CLI binary. Gated behind `cli` so library consumers
+# (`cargo add dev-tools` without --features) don't pay for clap's
+# compile time. `cargo install dev-tools --features cli` builds it.
+[[bin]]
+name = "dev"
+path = "src/bin/dev.rs"
+required-features = ["cli"]
 
 # Examples gated by the corresponding feature flag. `cargo build --examples`
 # (default features) builds only the always-available ones; turning on a
