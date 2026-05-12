@@ -386,6 +386,12 @@ struct VersionArgs {
     /// `fuzz`, `flaky`, `mutate`. With no argument, prints the full
     /// component table.
     component: Option<String>,
+
+    /// Emit the component table as JSON instead of the styled human
+    /// view. Useful for dashboards, CI comparators, and anything that
+    /// wants to parse the version surface programmatically.
+    #[arg(long)]
+    json: bool,
 }
 
 // =============================================================================
@@ -819,55 +825,59 @@ fn run_flaky(args: FlakyArgs) -> CliResult {
 // `dev version` — print component versions
 // =============================================================================
 //
-// The `SIBLINGS` table mirrors the version pins in this crate's
-// `Cargo.toml`. Keep it in sync when bumping a sibling; the table is
-// what `dev version` reports, not the actual compiled-in version.
+// The `SIBLINGS` table is generated at compile-time by `build.rs` from
+// the actual resolved versions in `Cargo.lock`. This means `dev version`
+// reports exactly what's linked into the binary — there's no
+// hand-maintained table to drift away from reality.
 
-const SIBLINGS: &[(&str, &str, &str)] = &[
-    // (short alias,  crate name,     version pinned in Cargo.toml)
-    ("report", "dev-report", "0.9.6"),
-    ("tools", "dev-tools", env!("CARGO_PKG_VERSION")),
-    ("fixtures", "dev-fixtures", "0.9.4"),
-    ("bench", "dev-bench", "0.9.4"),
-    ("async", "dev-async", "0.9.4"),
-    ("stress", "dev-stress", "0.9.4"),
-    ("chaos", "dev-chaos", "0.9.4"),
-    ("coverage", "dev-coverage", "0.9.1"),
-    ("security", "dev-security", "0.9.2"),
-    ("deps", "dev-deps", "0.9.1"),
-    ("ci", "dev-ci", "0.9.2"),
-    ("fuzz", "dev-fuzz", "0.9.1"),
-    ("flaky", "dev-flaky", "0.9.1"),
-    ("mutate", "dev-mutate", "0.9.2"),
-];
+include!(concat!(env!("OUT_DIR"), "/siblings.rs"));
 
 fn run_version(args: VersionArgs) -> CliResult {
-    let color = io::stdout().is_terminal();
+    let dev_version = env!("CARGO_PKG_VERSION");
+
+    // --json takes precedence over both the table and the filtered form.
+    // The same JSON shape is emitted whether or not `<component>` is
+    // supplied; the `components` array is filtered to one entry when
+    // a name is given.
+    if args.json {
+        let resolved = if let Some(name) = args.component.as_deref() {
+            let normalized = normalize_component(name);
+            let row = lookup_sibling(normalized).ok_or_else(|| unknown_component_msg(name))?;
+            vec![*row]
+        } else {
+            SIBLINGS.to_vec()
+        };
+
+        let value = serde_json::json!({
+            "binary": {
+                "name": "dev",
+                "version": dev_version,
+            },
+            "components": resolved
+                .iter()
+                .map(|(alias, name, version)| {
+                    serde_json::json!({
+                        "alias": alias,
+                        "name": name,
+                        "version": version,
+                    })
+                })
+                .collect::<Vec<_>>(),
+        });
+        let text = serde_json::to_string_pretty(&value)
+            .map_err(|e| format!("serialize version JSON: {e}"))?;
+        println!("{text}");
+        return Ok(ExitCode::SUCCESS);
+    }
 
     if let Some(name) = args.component.as_deref() {
-        let key = name.trim().to_ascii_lowercase();
-        // Accept either the short alias (`coverage`) or the full crate
-        // name (`dev-coverage`). Trim the `dev-` prefix on the way in
-        // so both spellings resolve to the same row.
-        let normalized = key.strip_prefix("dev-").unwrap_or(&key);
-        let row = SIBLINGS
-            .iter()
-            .find(|(alias, _, _)| *alias == normalized)
-            .ok_or_else(|| {
-                format!(
-                    "unknown component: {name:?}. Known: {}",
-                    SIBLINGS
-                        .iter()
-                        .map(|(a, _, _)| *a)
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            })?;
+        let normalized = normalize_component(name);
+        let row = lookup_sibling(normalized).ok_or_else(|| unknown_component_msg(name))?;
         println!("{} {}", row.1, row.2);
         return Ok(ExitCode::SUCCESS);
     }
 
-    let dev_version = env!("CARGO_PKG_VERSION");
+    let color = io::stdout().is_terminal();
     println!();
     println!(
         "  {}",
@@ -896,13 +906,40 @@ fn run_version(args: VersionArgs) -> CliResult {
     println!(
         "  {}",
         paint(
-            "tip: `dev version <name>` prints just one component",
+            "tip: `dev version <name>` prints just one component; --json emits machine-readable output",
             C_DIM,
             color
         )
     );
     println!();
     Ok(ExitCode::SUCCESS)
+}
+
+/// Normalize a user-supplied component name into the short-alias form.
+/// Accepts either `coverage` or `dev-coverage`; both resolve to the
+/// same row in the `SIBLINGS` table.
+fn normalize_component(name: &str) -> String {
+    let lower = name.trim().to_ascii_lowercase();
+    lower.strip_prefix("dev-").unwrap_or(&lower).to_string()
+}
+
+fn lookup_sibling(
+    normalized_alias: String,
+) -> Option<&'static (&'static str, &'static str, &'static str)> {
+    SIBLINGS
+        .iter()
+        .find(|(alias, _, _)| *alias == normalized_alias)
+}
+
+fn unknown_component_msg(name: &str) -> String {
+    format!(
+        "unknown component: {name:?}. Known: {}",
+        SIBLINGS
+            .iter()
+            .map(|(a, _, _)| *a)
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
 }
 
 // =============================================================================

@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+## [0.9.8] - 2026-05-12
+
+Final defer-list clearout ahead of `1.0`-RC.
+
+### Added
+
+- **`build.rs`-generated component table**. `src/bin/dev.rs` no longer carries a hand-maintained `SIBLINGS` const. A new `build.rs` parses `Cargo.lock` at compile time and emits `siblings.rs` into `$OUT_DIR`, which the binary `include!`s. Bumping a sibling crate now updates `dev version`'s output automatically on the next build — drift is structurally impossible. Degraded mode: if `Cargo.lock` is missing or unparseable, the generated table uses `"0.0.0"` placeholders rather than aborting the build.
+- **`dev version --json`** emits the component table as a structured JSON object: `{ "binary": { "name", "version" }, "components": [{ "alias", "name", "version" }, ...] }`. The flag composes with the filtered form (`dev version coverage --json` returns a one-element `components` array). Useful for dashboards, CI comparators, and anything that wants to parse the version surface programmatically.
+
+### Changed
+
+- `dev version`'s footer tip line now mentions `--json` alongside the `<name>` filter form.
+
+### Internal
+
+- New `normalize_component()`, `lookup_sibling()`, and `unknown_component_msg()` helpers in `src/bin/dev.rs`. The two component-resolution paths (table-and-styled vs. JSON) now share normalization, lookup, and error-formatting code instead of duplicating it.
+
+### Notes
+
+- No new runtime dependencies. `serde_json` was already a direct dep of `dev-tools`; the `--json` flag uses its existing `json!` macro.
+- No sub-crate version bumps. Every sibling stays at its current 0.9.x patch version.
+- MSRV unchanged at Rust 1.85.
+
+[0.9.8]: https://github.com/jamesgober/dev-tools/releases/tag/v0.9.8
+
 ## [0.9.7] - 2026-05-12
 
 CLI version surface.
