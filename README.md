@@ -115,11 +115,67 @@ Each feature exposes the underlying sub-crate at a fixed path:
 | Feature | Module path | Top-level types |
 |---|---|---|
 | _always_ | `dev_tools::report` | `Report`, `CheckResult`, `Verdict`, `Severity`, `Evidence`, `Producer`, `MultiReport`, `Diff`, `DiffOptions` |
+| _always_ | `dev_tools::producers` | `cargo_test_producer`, `clippy_producer`, `cargo_check_producer` |
+| _always_ | `dev_tools::brand` | `COLOR_ACCENT`, `COLOR_PASS`, `COLOR_FAIL`, `COLOR_WARN`, `COLOR_LINT`, `COLOR_BG`, `COLOR_FG`, `FOOTER` |
 | `fixtures` | `dev_tools::fixtures` | `TempProject`, `FixtureProducer`, `Golden`, `BinaryGolden`, `tree::*`, `adversarial::*`, `mock::*` |
 | `bench` | `dev_tools::bench` | `Benchmark`, `BenchmarkResult`, `BenchProducer`, `Threshold`, `CompareOptions`, `Baseline`, `BaselineStore`, `JsonFileBaselineStore` |
 | `async` | `dev_tools::r#async` | `run_with_timeout`, `join_all_with_timeout`, `AsyncProducer`, `BlockingAsyncProducer`, `deadlock::*`, `tasks::*`, `shutdown::*` |
 | `stress` | `dev_tools::stress` | `StressRun`, `StressResult`, `SoakRun`, `Workload`, `LatencyTracker`, `LatencyStats`, `StressProducer` |
 | `chaos` | `dev_tools::chaos` | `FailureSchedule`, `FailureMode`, `assert_recovered`, `ChaosProducer`, `io::*`, `latency::*`, `crash::*` |
+
+### Built-in producers
+
+The `producers` module ships three reusable `Producer` implementations
+that wrap common `cargo` subcommands. Each one spawns a subprocess,
+parses its output, and emits one `CheckResult` per result. Subprocess
+failures map to a `CheckResult::fail` named `subprocess::spawn` — no
+panics.
+
+```rust,no_run
+use dev_tools::producers::{cargo_test_producer, clippy_producer};
+use dev_tools::report::Producer;
+
+let report = cargo_test_producer("my-crate", "0.1.0").produce();
+let lints = clippy_producer("my-crate", "0.1.0").produce();
+```
+
+`cargo_test_producer` maps libtest output: pass → `Pass`, FAILED →
+`Fail` + `Severity::Error`, ignored → `Skip`. `clippy_producer` and
+`cargo_check_producer` parse `--message-format=json`: warnings →
+`Warn` + `Severity::Warning`, errors → `Fail` + `Severity::Error`.
+Source locations propagate as `Evidence::FileRef`; the rendered
+diagnostic propagates as `Evidence::Snippet`.
+
+`CARGO_TARGET_DIR`, `CARGO`, and the rest of the parent environment
+are inherited by the subprocess. Set a working directory with
+`.in_dir(path)` on any of the producer types.
+
+### HTML meta-report
+
+`MultiReport::to_html()` (via the `MultiReportHtmlExt` trait, which the
+prelude exports) renders a `MultiReport` as a self-contained HTML
+document — inline CSS, inline SVG charts, no JavaScript dependencies,
+no external assets.
+
+```rust
+use dev_tools::prelude::*;
+
+let mut bench = Report::new("my-crate", "0.1.0").with_producer("dev-bench");
+bench.push(CheckResult::pass("hot_path"));
+let mut multi = MultiReport::new("my-crate", "0.1.0");
+multi.push(bench);
+
+let html = multi.to_html();
+std::fs::write("report.html", html).unwrap();
+```
+
+The output is byte-deterministic for a given input. Sections: header
+with the overall verdict badge, summary counts + stacked verdict bar,
+duration histogram (only when at least one check has a duration), and
+one collapsible `<details>` per producer (auto-opened when that
+producer has failures or warnings). Colors come from CSS custom
+properties at the top of the document, sourced from the `brand`
+module — replacing those constants re-themes every future report.
 
 ## Prelude
 

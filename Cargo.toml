@@ -40,6 +40,12 @@ rustdoc-args = ["--cfg", "docsrs"]
 # decoupled from coordinated patch releases of the sibling crates.
 dev-report = { version = "0.9", path = "../dev-report" }
 
+# Used by `producers` (cargo JSON message parsing) and the HTML
+# meta-report. Already in the transitive tree via dev-report; declared
+# directly here so dev-tools doesn't rely on dev-report's internals.
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
 # Optional sub-crates pulled in by feature flags.
 dev-fixtures = { version = "0.9", path = "../dev-fixtures", optional = true }
 dev-bench = { version = "0.9", path = "../dev-bench", optional = true }
@@ -48,6 +54,10 @@ dev-stress = { version = "0.9", path = "../dev-stress", optional = true }
 dev-chaos = { version = "0.9", path = "../dev-chaos", optional = true }
 
 [dev-dependencies]
+# Used by html-module tests to construct frozen timestamps so HTML
+# output is byte-deterministic in the test suite. Available transitively
+# through dev-report; declared directly here for the test scope.
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [features]
 # Sensible default for most projects: temp environments, perf checks,

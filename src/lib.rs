@@ -53,6 +53,49 @@
 /// Re-export of [`dev_report`]. Always available.
 pub use dev_report as report;
 
+pub mod brand;
+pub mod html;
+pub mod producers;
+
+/// Extension trait providing [`to_html`](Self::to_html) on
+/// [`dev_report::MultiReport`].
+///
+/// `MultiReport` lives in `dev-report` (the schema crate, which is kept
+/// dependency-free), so the HTML meta-report renderer lives here in
+/// `dev-tools` and exposes itself through this extension trait.
+///
+/// Pull it in via `use dev_tools::MultiReportHtmlExt;` or via the
+/// prelude.
+///
+/// # Example
+///
+/// ```
+/// use dev_report::{CheckResult, MultiReport, Report};
+/// use dev_tools::MultiReportHtmlExt;
+///
+/// let mut r = Report::new("crate", "0.1.0").with_producer("dev-bench");
+/// r.push(CheckResult::pass("ok"));
+/// let mut multi = MultiReport::new("crate", "0.1.0");
+/// multi.push(r);
+///
+/// let html = multi.to_html();
+/// assert!(html.starts_with("<!DOCTYPE html>"));
+/// ```
+pub trait MultiReportHtmlExt {
+    /// Render this `MultiReport` as a self-contained HTML document.
+    ///
+    /// See [`html`] for output guarantees (no external assets,
+    /// deterministic output, CSS custom properties driven by the
+    /// [`brand`] module).
+    fn to_html(&self) -> String;
+}
+
+impl MultiReportHtmlExt for dev_report::MultiReport {
+    fn to_html(&self) -> String {
+        html::multi_report_to_html(self)
+    }
+}
+
 /// Re-export of [`dev_fixtures`]. Available with the `fixtures` feature.
 #[cfg(feature = "fixtures")]
 #[cfg_attr(docsrs, doc(cfg(feature = "fixtures")))]
@@ -109,6 +152,8 @@ pub mod prelude {
         CheckResult, Diff, DiffOptions, DurationRegression, Evidence, EvidenceData, EvidenceKind,
         FileRef, MultiReport, Producer, Report, Severity, SeverityChange, Verdict,
     };
+
+    pub use crate::MultiReportHtmlExt;
 
     /// Async-flavored prelude. Available with the `async` feature.
     ///

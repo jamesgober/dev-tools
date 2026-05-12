@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Added
+
+- New `dev_tools::producers` module shipping three reusable `Producer` implementations driven by `cargo` subprocesses:
+  - `cargo_test_producer(subject, version)`: runs `cargo test --no-fail-fast`, parses libtest's per-test output, emits one `CheckResult` per test (pass / fail / skip for ignored).
+  - `clippy_producer(subject, version)`: runs `cargo clippy --message-format=json`, maps each diagnostic to a `CheckResult` (warning → warn + `Severity::Warning`; error → fail + `Severity::Error`). Source location propagates as `Evidence::FileRef`; rendered diagnostic text propagates as `Evidence::Snippet`.
+  - `cargo_check_producer(subject, version)`: same diagnostic-to-CheckResult mapping as the clippy producer, but for `cargo check`.
+  - Subprocess failures become a `CheckResult::fail` with `Severity::Critical` named `subprocess::spawn` inside the produced report. No panics. `CARGO_TARGET_DIR`, `CARGO`, and the rest of the parent environment are inherited.
+  - All three producers carry a builder method `in_dir(path)` to set the working directory.
+- New `dev_tools::brand` module exposing color and footer constants for the HTML meta-report (`COLOR_ACCENT`, `COLOR_PASS`, `COLOR_FAIL`, `COLOR_WARN`, `COLOR_LINT`, `COLOR_BG`, `COLOR_FG`, `FOOTER`). Values are placeholders; the real palette lands in a later release when the brand kit is finalized.
+- New `dev_tools::html` module and `MultiReportHtmlExt` trait. Calling `multi.to_html()` produces a self-contained HTML document: inline CSS, inline SVG charts (stacked verdict bar + duration histogram), no JavaScript dependencies, no external assets. Collapse/expand uses native HTML5 `<details>`; producers with failures or warnings open by default. Colors come from CSS custom properties set from the `brand` module so theming is a one-line change. Output is byte-deterministic for a given input (no clock reads, no random IDs).
+- `examples/cargo_test_producer.rs`, `examples/clippy_producer.rs`, `examples/cargo_check_producer.rs` demonstrate each producer's API surface. The example runs are gated by the `DEV_TOOLS_EXAMPLE_RUN` env var so CI does not pay for a recursive cargo invocation on every example build.
+- `examples/html_meta_report.rs` builds a synthetic three-producer `MultiReport`, renders it via `to_html()`, and writes the result to `target/dev-tools-examples/meta-report.html` (or a path of the user's choosing).
+- `MultiReportHtmlExt` is exported through `dev_tools::prelude` so `use dev_tools::prelude::*;` brings `.to_html()` into scope alongside the other report types.
+
+### Changed
+
+- `serde` and `serde_json` are now direct dependencies of `dev-tools` (previously transitive via `dev-report`). Used by the `producers` module to parse `cargo --message-format=json` output.
+- `chrono` added as a `[dev-dependencies]` entry (also previously transitive) for deterministic timestamps in the `html` module's tests.
+- CI: `actions/checkout` bumped to `v5` (was `v4`); removes Node 20 deprecation warnings.
+
 ## [0.9.2] - 2026-05-10
 
 ### Added
@@ -12,7 +32,7 @@
 
 ### Documentation
 
-- Comprehensive README revamp:
+- README rewrite:
   - Feature flag table prominently at the top with use-case column.
   - Quick-start section now shows install snippets for defaults, no-default-features (schema only), specific feature combinations, and feature-toggling.
   - New API map table mapping each feature to its module path and top-level types.
