@@ -425,10 +425,10 @@ fn main() -> ExitCode {
 // =============================================================================
 
 fn run_report(args: ReportArgs) -> CliResult {
-    let text = fs::read_to_string(&args.path)
-        .map_err(|e| format!("read {}: {e}", args.path.display()))?;
-    let report = Report::from_json(&text)
-        .map_err(|e| format!("parse {}: {e}", args.path.display()))?;
+    let text =
+        fs::read_to_string(&args.path).map_err(|e| format!("read {}: {e}", args.path.display()))?;
+    let report =
+        Report::from_json(&text).map_err(|e| format!("parse {}: {e}", args.path.display()))?;
     render_report(&report, &args.common)?;
     Ok(exit_for_verdict(report.overall_verdict()))
 }
@@ -466,15 +466,14 @@ fn run_diff(args: DiffArgs) -> CliResult {
 
 fn run_html(args: HtmlArgs) -> CliResult {
     use dev_tools::prelude::MultiReportHtmlExt as _;
-    let text = fs::read_to_string(&args.path)
-        .map_err(|e| format!("read {}: {e}", args.path.display()))?;
+    let text =
+        fs::read_to_string(&args.path).map_err(|e| format!("read {}: {e}", args.path.display()))?;
     // Accept either a single Report or a MultiReport — wrap a singleton.
     let multi: MultiReport = match MultiReport::from_json(&text) {
         Ok(m) => m,
         Err(_) => {
-            let report = Report::from_json(&text).map_err(|e| {
-                format!("not a Report or MultiReport JSON: {e}")
-            })?;
+            let report = Report::from_json(&text)
+                .map_err(|e| format!("not a Report or MultiReport JSON: {e}"))?;
             let mut m = MultiReport::new(&report.subject, &report.subject_version);
             m.push(report);
             m.finish();
@@ -488,8 +487,7 @@ fn run_html(args: HtmlArgs) -> CliResult {
         p.set_extension("html");
         p
     });
-    fs::write(&out_path, &html)
-        .map_err(|e| format!("write {}: {e}", out_path.display()))?;
+    fs::write(&out_path, &html).map_err(|e| format!("write {}: {e}", out_path.display()))?;
     eprintln!("wrote {} ({} bytes)", out_path.display(), html.len());
     Ok(ExitCode::SUCCESS)
 }
@@ -594,8 +592,8 @@ fn run_full_stack(
 // =============================================================================
 
 fn run_bench(args: BenchArgs) -> CliResult {
-    use std::process::Command;
     use dev_tools::report::{CheckResult, Severity};
+    use std::process::Command;
 
     let subject = args.common.resolved_subject();
     let version = args.common.resolved_version();
@@ -621,8 +619,7 @@ fn run_bench(args: BenchArgs) -> CliResult {
         CheckResult::pass("cargo::bench")
     } else {
         let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
-        CheckResult::fail("cargo::bench", Severity::Error)
-            .with_detail(first_lines(&stderr, 20))
+        CheckResult::fail("cargo::bench", Severity::Error).with_detail(first_lines(&stderr, 20))
     };
     r.push(check);
     r.finish();
@@ -653,9 +650,7 @@ fn run_coverage(args: CoverageArgs) -> CliResult {
         run = run.in_dir(d);
     }
 
-    let result = run
-        .execute()
-        .map_err(|e| format!("coverage failed: {e}"))?;
+    let result = run.execute().map_err(|e| format!("coverage failed: {e}"))?;
 
     // `--threshold` is optional; 0.0 disables the gate (every coverage
     // value passes a >= 0.0 check) while still producing the Report.
@@ -693,9 +688,7 @@ fn run_audit(args: AuditArgs) -> CliResult {
         run = run.deny_config(cfg);
     }
 
-    let result = run
-        .execute()
-        .map_err(|e| format!("audit failed: {e}"))?;
+    let result = run.execute().map_err(|e| format!("audit failed: {e}"))?;
     let report = result.into_report();
     render_report(&report, &args.common)?;
     Ok(exit_for_verdict(report.overall_verdict()))
@@ -756,9 +749,7 @@ fn run_fuzz(args: FuzzArgs) -> CliResult {
         run = run.in_dir(d);
     }
 
-    let result = run
-        .execute()
-        .map_err(|e| format!("fuzz failed: {e}"))?;
+    let result = run.execute().map_err(|e| format!("fuzz failed: {e}"))?;
     let report = result.into_report();
     render_report(&report, &args.common)?;
     Ok(exit_for_verdict(report.overall_verdict()))
@@ -785,9 +776,7 @@ fn run_mutate(args: MutateArgs) -> CliResult {
     }
     let threshold = MutateThreshold::min_kill_pct(args.threshold);
 
-    let result = run
-        .execute()
-        .map_err(|e| format!("mutate failed: {e}"))?;
+    let result = run.execute().map_err(|e| format!("mutate failed: {e}"))?;
     let check = result.into_check_result(threshold);
     let mut r = Report::new(&subject, &version).with_producer("dev mutate");
     r.push(check);
@@ -836,20 +825,20 @@ fn run_flaky(args: FlakyArgs) -> CliResult {
 
 const SIBLINGS: &[(&str, &str, &str)] = &[
     // (short alias,  crate name,     version pinned in Cargo.toml)
-    ("report",   "dev-report",   "0.9.6"),
-    ("tools",    "dev-tools",    env!("CARGO_PKG_VERSION")),
+    ("report", "dev-report", "0.9.6"),
+    ("tools", "dev-tools", env!("CARGO_PKG_VERSION")),
     ("fixtures", "dev-fixtures", "0.9.4"),
-    ("bench",    "dev-bench",    "0.9.4"),
-    ("async",    "dev-async",    "0.9.4"),
-    ("stress",   "dev-stress",   "0.9.4"),
-    ("chaos",    "dev-chaos",    "0.9.4"),
+    ("bench", "dev-bench", "0.9.4"),
+    ("async", "dev-async", "0.9.4"),
+    ("stress", "dev-stress", "0.9.4"),
+    ("chaos", "dev-chaos", "0.9.4"),
     ("coverage", "dev-coverage", "0.9.1"),
     ("security", "dev-security", "0.9.2"),
-    ("deps",     "dev-deps",     "0.9.1"),
-    ("ci",       "dev-ci",       "0.9.2"),
-    ("fuzz",     "dev-fuzz",     "0.9.1"),
-    ("flaky",    "dev-flaky",    "0.9.1"),
-    ("mutate",   "dev-mutate",   "0.9.2"),
+    ("deps", "dev-deps", "0.9.1"),
+    ("ci", "dev-ci", "0.9.2"),
+    ("fuzz", "dev-fuzz", "0.9.1"),
+    ("flaky", "dev-flaky", "0.9.1"),
+    ("mutate", "dev-mutate", "0.9.2"),
 ];
 
 fn run_version(args: VersionArgs) -> CliResult {
@@ -958,7 +947,7 @@ fn run_ci(args: CiArgs) -> CliResult {
     }
 
     let yaml = gen.generate();
-    if args.output == PathBuf::from("-") {
+    if args.output.as_os_str() == "-" {
         io::stdout()
             .write_all(yaml.as_bytes())
             .map_err(|e| format!("stdout: {e}"))?;
@@ -970,8 +959,7 @@ fn run_ci(args: CiArgs) -> CliResult {
                 .map_err(|e| format!("create_dir_all({}): {e}", parent.display()))?;
         }
     }
-    fs::write(&args.output, yaml)
-        .map_err(|e| format!("write {}: {e}", args.output.display()))?;
+    fs::write(&args.output, yaml).map_err(|e| format!("write {}: {e}", args.output.display()))?;
     eprintln!("wrote {}", args.output.display());
     Ok(ExitCode::SUCCESS)
 }
@@ -1044,8 +1032,7 @@ fn render_diff(diff: &Diff, common: &CommonOutputArgs) -> Result<(), String> {
         OutputFormat::Markdown => diff.to_markdown(),
         OutputFormat::Json | OutputFormat::Sarif | OutputFormat::Junit => {
             // Diff is not a wire-format object; fall back to JSON of the diff struct.
-            serde_json::to_string_pretty(diff)
-                .map_err(|e| format!("serialize Diff: {e}"))?
+            serde_json::to_string_pretty(diff).map_err(|e| format!("serialize Diff: {e}"))?
         }
     };
     write_text(&text, common.out.as_deref())
@@ -1201,14 +1188,13 @@ fn pretty_report(report: &Report, color: bool) -> String {
     let mut out = String::with_capacity(512);
 
     // Header.
-    let title = format!(
-        "{}{}{}",
-        "dev · ",
-        report.subject,
-        format!(" {}", report.subject_version)
-    );
+    let title = format!("dev · {} {}", report.subject, report.subject_version);
     out.push('\n');
-    out.push_str(&paint(&format!("  {}", title), &format!("{C_BOLD}{C_CYAN}"), color));
+    out.push_str(&paint(
+        &format!("  {}", title),
+        &format!("{C_BOLD}{C_CYAN}"),
+        color,
+    ));
     out.push('\n');
     if let Some(p) = &report.producer {
         out.push_str(&paint(&format!("  via {p}"), C_DIM, color));
@@ -1217,7 +1203,13 @@ fn pretty_report(report: &Report, color: bool) -> String {
     out.push('\n');
 
     // Per-check lines.
-    let name_width = report.checks.iter().map(|c| c.name.len()).max().unwrap_or(0).clamp(20, 60);
+    let name_width = report
+        .checks
+        .iter()
+        .map(|c| c.name.len())
+        .max()
+        .unwrap_or(0)
+        .clamp(20, 60);
     for c in &report.checks {
         let (glyph, glyph_color, _label) = verdict_glyph_color(c.verdict);
         let dur = match c.duration_ms {
@@ -1252,7 +1244,11 @@ fn pretty_report(report: &Report, color: bool) -> String {
     }
 
     out.push('\n');
-    out.push_str(&paint("  ─────────────────────────────────────────────────────────", C_DIM, color));
+    out.push_str(&paint(
+        "  ─────────────────────────────────────────────────────────",
+        C_DIM,
+        color,
+    ));
     out.push('\n');
     out.push_str("  ");
     let total = report.checks.len();
@@ -1295,7 +1291,11 @@ fn pretty_multi(multi: &MultiReport, color: bool) -> String {
     ));
     out.push('\n');
     out.push_str(&paint(
-        &format!("  {} producer{}", multi.reports.len(), if multi.reports.len() == 1 { "" } else { "s" }),
+        &format!(
+            "  {} producer{}",
+            multi.reports.len(),
+            if multi.reports.len() == 1 { "" } else { "s" }
+        ),
         C_DIM,
         color,
     ));
@@ -1333,7 +1333,11 @@ fn pretty_multi(multi: &MultiReport, color: bool) -> String {
                 out.push(' ');
                 out.push_str(&c.name);
                 if let Some(d) = &c.detail {
-                    out.push_str(&paint(&format!(" — {}", d.lines().next().unwrap_or(d)), C_DIM, color));
+                    out.push_str(&paint(
+                        &format!(" — {}", d.lines().next().unwrap_or(d)),
+                        C_DIM,
+                        color,
+                    ));
                 }
                 out.push('\n');
             }
@@ -1341,7 +1345,11 @@ fn pretty_multi(multi: &MultiReport, color: bool) -> String {
     }
 
     out.push('\n');
-    out.push_str(&paint("  ─────────────────────────────────────────────────────────", C_DIM, color));
+    out.push_str(&paint(
+        "  ─────────────────────────────────────────────────────────",
+        C_DIM,
+        color,
+    ));
     out.push('\n');
     out.push_str(&format!(
         "  totals: {} pass · {} fail · {} warn · {} skip\n",
