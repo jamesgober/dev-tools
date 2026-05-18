@@ -1,8 +1,8 @@
 [package]
 name = "dev-tools"
-version = "0.9.9"
+version = "0.9.10"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.75"
 readme = "README.md"
 license = "Apache-2.0"
 
@@ -62,7 +62,7 @@ dev-chaos    = { version = "0.9", path = "../dev-chaos",    optional = true }
 dev-coverage = { version = "0.9", path = "../dev-coverage", optional = true }
 dev-security = { version = "0.9", path = "../dev-security", optional = true }
 dev-deps     = { version = "0.9", path = "../dev-deps",     optional = true }
-dev-ci       = { version = "0.9", path = "../dev-ci",       optional = true }
+dev-ci       = { version = "0.9", path = "../dev-ci",       optional = true, default-features = false }
 dev-fuzz     = { version = "0.9", path = "../dev-fuzz",     optional = true }
 dev-flaky    = { version = "0.9", path = "../dev-flaky",    optional = true }
 dev-mutate   = { version = "0.9", path = "../dev-mutate",   optional = true }
