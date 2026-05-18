@@ -31,6 +31,8 @@ jobs:
           git clone --depth 1 https://github.com/jamesgober/dev-report.git ../dev-report
           git clone --depth 1 https://github.com/jamesgober/dev-fixtures.git ../dev-fixtures
           git clone --depth 1 https://github.com/jamesgober/dev-bench.git ../dev-bench
+          git clone --depth 1 https://github.com/jamesgober/mod-tempdir.git ../mod-tempdir
+          git clone --depth 1 https://github.com/jamesgober/mod-alloc.git ../mod-alloc
           git clone --depth 1 https://github.com/jamesgober/dev-async.git ../dev-async
           git clone --depth 1 https://github.com/jamesgober/dev-stress.git ../dev-stress
           git clone --depth 1 https://github.com/jamesgober/dev-chaos.git ../dev-chaos
@@ -72,6 +74,8 @@ jobs:
           git clone --depth 1 https://github.com/jamesgober/dev-report.git ../dev-report
           git clone --depth 1 https://github.com/jamesgober/dev-fixtures.git ../dev-fixtures
           git clone --depth 1 https://github.com/jamesgober/dev-bench.git ../dev-bench
+          git clone --depth 1 https://github.com/jamesgober/mod-tempdir.git ../mod-tempdir
+          git clone --depth 1 https://github.com/jamesgober/mod-alloc.git ../mod-alloc
           git clone --depth 1 https://github.com/jamesgober/dev-async.git ../dev-async
           git clone --depth 1 https://github.com/jamesgober/dev-stress.git ../dev-stress
           git clone --depth 1 https://github.com/jamesgober/dev-chaos.git ../dev-chaos
@@ -113,6 +117,8 @@ jobs:
           git clone --depth 1 https://github.com/jamesgober/dev-report.git ../dev-report
           git clone --depth 1 https://github.com/jamesgober/dev-fixtures.git ../dev-fixtures
           git clone --depth 1 https://github.com/jamesgober/dev-bench.git ../dev-bench
+          git clone --depth 1 https://github.com/jamesgober/mod-tempdir.git ../mod-tempdir
+          git clone --depth 1 https://github.com/jamesgober/mod-alloc.git ../mod-alloc
           git clone --depth 1 https://github.com/jamesgober/dev-async.git ../dev-async
           git clone --depth 1 https://github.com/jamesgober/dev-stress.git ../dev-stress
           git clone --depth 1 https://github.com/jamesgober/dev-chaos.git ../dev-chaos
@@ -137,6 +143,8 @@ jobs:
           git clone --depth 1 https://github.com/jamesgober/dev-report.git ../dev-report
           git clone --depth 1 https://github.com/jamesgober/dev-fixtures.git ../dev-fixtures
           git clone --depth 1 https://github.com/jamesgober/dev-bench.git ../dev-bench
+          git clone --depth 1 https://github.com/jamesgober/mod-tempdir.git ../mod-tempdir
+          git clone --depth 1 https://github.com/jamesgober/mod-alloc.git ../mod-alloc
           git clone --depth 1 https://github.com/jamesgober/dev-async.git ../dev-async
           git clone --depth 1 https://github.com/jamesgober/dev-stress.git ../dev-stress
           git clone --depth 1 https://github.com/jamesgober/dev-chaos.git ../dev-chaos
