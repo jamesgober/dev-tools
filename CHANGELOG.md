@@ -2,9 +2,10 @@
 
 ## [Unreleased]
 
-Exploratory CLI surface expansion. Not yet released; landed on `main`
-for iteration. Will fold into the next versioned release once the
-ergonomics settle.
+## [0.9.10] - 2026-05-18
+
+MSRV rollback (library half) + CLI surface expansion. Folds in the
+`[Unreleased]` work from prior commits into a versioned release.
 
 ### Added
 
@@ -14,12 +15,21 @@ ergonomics settle.
 - **`dev chaos`** — same shape. `dev-chaos` requires `FailureSchedule` construction + injection into the code under test. Stub explains, example, link.
 - All four new stubs accept `--json` to emit machine-readable variants of the explainer text.
 
-### Notes
+### Changed
 
-- These four commands move the CLI surface from 15 subcommands to **19**. `dev --help` now lists the full set.
-- The `dev stress` / `dev chaos` / `dev async` commands are intentionally stubs at this stage. Future iteration may add canned modes (`dev stress --hammer`, `dev async --probe`, etc.) once the right defaults are clear. They're parked here as "good ideas that will likely grow and spawn new good ideas" rather than rushed into a release.
-- `dev doctor` is the only one of the four with a full implementation — it's complete and ready to use today; subsequent releases may add more probes (workspace detection, lock-file freshness, dev-tools-itself-out-of-date warnings).
-- No version bump. No `Cargo.toml` change. No new dependencies. Library API surface untouched. Builds and tests with `--all-features` clean.
+- **MSRV (library) rolled back from `1.85` to `1.75`.** The `dev-fixtures` 0.9.5 swap of `tempfile` → `mod-tempdir` killed the `getrandom 0.4.2 → edition2024` transitive chain that was the sole reason dev-tools sat at 1.85.
+- **`dev-ci` dependency now pulled with `default-features = false`.** The library half of dev-ci is MSRV 1.75; only its `cli` feature (which pulls clap) requires 1.85. dev-tools' `ci` feature uses dev-ci's library API only, so the umbrella library stays at MSRV 1.75 when the `ci` feature is enabled.
+- README MSRV badge updated from `1.85+` to `1.75+`. Install snippets bumped to `dev-tools = "0.9.10"`.
+
+### Notes — library vs binary MSRV
+
+- **Library MSRV: 1.75.** Anyone running `cargo add dev-tools` (with any feature combination *except* `cli`) targets 1.75.
+- **Binary MSRV: 1.85.** `cargo install dev-tools --features cli` pulls clap and requires 1.85 to build the `dev` CLI binary. This is a clap-transitive constraint (clap 4.6+'s `clap_derive` / `clap_lex` moved to edition2024); the dev-tools side is not the bottleneck. Library consumers are unaffected.
+- The CLI surface goes from 15 subcommands to **19** (`dev async`, `dev stress`, `dev chaos`, `dev doctor` added). `dev --help` now lists the full set.
+- The `dev stress` / `dev chaos` / `dev async` commands are intentionally informational stubs. Future iteration may add canned modes (`dev stress --hammer`, `dev async --probe`, etc.) once the right defaults are clear.
+- `dev doctor` is fully implemented and ready to use; subsequent releases may add more probes (workspace detection, lock-file freshness, dev-tools-itself-out-of-date warnings).
+
+[0.9.10]: https://github.com/jamesgober/dev-tools/releases/tag/v0.9.10
 
 ## [0.9.9] - 2026-05-12
 
