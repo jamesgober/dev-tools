@@ -17,6 +17,14 @@
 //! producers do NOT escalate warnings to errors (no `-D warnings`); the
 //! distinction is preserved in the produced `CheckResult` verdicts.
 //!
+//! ### Time limit
+//!
+//! By default a producer waits for cargo to finish, however long that
+//! takes. Each producer has a `timeout` builder: when it expires, the
+//! whole cargo process tree (including test binaries) is killed, results
+//! already printed are kept, and a `Fail` check named
+//! `cargo::<subcommand>::timeout` is added.
+//!
 //! ### Environment
 //!
 //! `CARGO_TARGET_DIR`, `CARGO`, and the rest of the parent environment
@@ -29,6 +37,7 @@
 
 use std::path::PathBuf;
 use std::process::Command;
+use std::time::Duration;
 
 use dev_report::{CheckResult, Evidence, Producer, Report, Severity};
 use serde::Deserialize;
@@ -45,6 +54,7 @@ pub struct CargoTestProducer {
     subject: String,
     subject_version: String,
     workdir: Option<PathBuf>,
+    timeout: Option<Duration>,
 }
 
 impl CargoTestProducer {
@@ -54,6 +64,14 @@ impl CargoTestProducer {
         self.workdir = Some(dir.into());
         self
     }
+
+    /// Stop cargo once it has run for `limit`. The whole process tree
+    /// is killed, results printed so far are kept, and a `Fail` check
+    /// named `cargo::<subcommand>::timeout` is added. Off by default.
+    pub fn timeout(mut self, limit: Duration) -> Self {
+        self.timeout = Some(limit);
+        self
+    }
 }
 
 impl Producer for CargoTestProducer {
@@ -61,7 +79,7 @@ impl Producer for CargoTestProducer {
         let mut report =
             Report::new(&self.subject, &self.subject_version).with_producer("cargo-test");
 
-        let output = match run_cargo(&self.workdir, &["test", "--no-fail-fast"]) {
+        let output = match run_cargo(&self.workdir, &["test", "--no-fail-fast"], self.timeout) {
             Ok(o) => o,
             Err(c) => {
                 report.push(*c);
@@ -70,8 +88,19 @@ impl Producer for CargoTestProducer {
             }
         };
 
-        for c in parse_cargo_test_output(&output.combined) {
+        let checks = parse_cargo_test_output(&output.combined);
+        let any_failed = checks.iter().any(|c| c.verdict == Verdict::Fail);
+        for c in checks {
             report.push(c);
+        }
+        // A build error, a crashed test binary, or a bad flag makes
+        // `cargo test` exit non-zero without printing a single FAILED
+        // test line. Without this check the report would be empty (an
+        // overall Skip) and read as success.
+        if output.timed_out {
+            report.push(timeout_failure("test", self.timeout));
+        } else if !output.success && !any_failed {
+            report.push(exit_failure("test", &output));
         }
         report.finish();
         report
@@ -99,6 +128,7 @@ pub fn cargo_test_producer(
         subject: subject.into(),
         subject_version: subject_version.into(),
         workdir: None,
+        timeout: None,
     }
 }
 
@@ -141,6 +171,7 @@ pub struct ClippyProducer {
     subject: String,
     subject_version: String,
     workdir: Option<PathBuf>,
+    timeout: Option<Duration>,
 }
 
 impl ClippyProducer {
@@ -149,13 +180,21 @@ impl ClippyProducer {
         self.workdir = Some(dir.into());
         self
     }
+
+    /// Stop cargo once it has run for `limit`. The whole process tree
+    /// is killed, results printed so far are kept, and a `Fail` check
+    /// named `cargo::<subcommand>::timeout` is added. Off by default.
+    pub fn timeout(mut self, limit: Duration) -> Self {
+        self.timeout = Some(limit);
+        self
+    }
 }
 
 impl Producer for ClippyProducer {
     fn produce(&self) -> Report {
         let mut report =
             Report::new(&self.subject, &self.subject_version).with_producer("cargo-clippy");
-        run_message_format_json(&self.workdir, "clippy", &mut report);
+        run_message_format_json(&self.workdir, "clippy", self.timeout, &mut report);
         report
     }
 }
@@ -186,6 +225,7 @@ pub fn clippy_producer(
         subject: subject.into(),
         subject_version: subject_version.into(),
         workdir: None,
+        timeout: None,
     }
 }
 
@@ -197,6 +237,7 @@ pub struct CargoCheckProducer {
     subject: String,
     subject_version: String,
     workdir: Option<PathBuf>,
+    timeout: Option<Duration>,
 }
 
 impl CargoCheckProducer {
@@ -205,13 +246,21 @@ impl CargoCheckProducer {
         self.workdir = Some(dir.into());
         self
     }
+
+    /// Stop cargo once it has run for `limit`. The whole process tree
+    /// is killed, results printed so far are kept, and a `Fail` check
+    /// named `cargo::<subcommand>::timeout` is added. Off by default.
+    pub fn timeout(mut self, limit: Duration) -> Self {
+        self.timeout = Some(limit);
+        self
+    }
 }
 
 impl Producer for CargoCheckProducer {
     fn produce(&self) -> Report {
         let mut report =
             Report::new(&self.subject, &self.subject_version).with_producer("cargo-check");
-        run_message_format_json(&self.workdir, "check", &mut report);
+        run_message_format_json(&self.workdir, "check", self.timeout, &mut report);
         report
     }
 }
@@ -238,11 +287,17 @@ pub fn cargo_check_producer(
         subject: subject.into(),
         subject_version: subject_version.into(),
         workdir: None,
+        timeout: None,
     }
 }
 
-fn run_message_format_json(workdir: &Option<PathBuf>, subcommand: &str, report: &mut Report) {
-    let output = match run_cargo(workdir, &[subcommand, "--message-format=json"]) {
+fn run_message_format_json(
+    workdir: &Option<PathBuf>,
+    subcommand: &str,
+    timeout: Option<Duration>,
+    report: &mut Report,
+) {
+    let output = match run_cargo(workdir, &[subcommand, "--message-format=json"], timeout) {
         Ok(o) => o,
         Err(c) => {
             report.push(*c);
@@ -250,12 +305,60 @@ fn run_message_format_json(workdir: &Option<PathBuf>, subcommand: &str, report: 
             return;
         }
     };
+    let mut any_failed = false;
     for line in output.stdout.lines() {
         if let Some(c) = parse_cargo_message_line(line) {
+            any_failed |= c.verdict == Verdict::Fail;
             report.push(c);
         }
     }
+    // A broken manifest, an unknown flag, or a missing clippy component
+    // makes cargo exit non-zero without any JSON error diagnostic.
+    if output.timed_out {
+        report.push(timeout_failure(subcommand, timeout));
+    } else if !output.success && !any_failed {
+        report.push(exit_failure(subcommand, &output));
+    }
     report.finish();
+}
+
+/// `Fail` check for a cargo run that was killed at its time limit.
+fn timeout_failure(subcommand: &str, limit: Option<Duration>) -> CheckResult {
+    let limit = limit.unwrap_or_default();
+    CheckResult::fail(format!("cargo::{}::timeout", subcommand), Severity::Error)
+        .with_detail(format!(
+            "`cargo {}` did not finish within {:?} and was killed; results printed before that are kept",
+            subcommand, limit
+        ))
+        .with_evidence(Evidence::numeric_int(
+            "timeout_ms",
+            i64::try_from(limit.as_millis()).unwrap_or(i64::MAX),
+        ))
+}
+
+/// `Fail` check for a cargo run that exited non-zero without reporting
+/// the failure in its structured output. Carries the tail of stderr.
+fn exit_failure(subcommand: &str, output: &CapturedOutput) -> CheckResult {
+    let code = output
+        .code
+        .map(|c| c.to_string())
+        .unwrap_or_else(|| "a signal".to_string());
+    let tail = last_lines(&output.stderr, 40);
+    let mut check = CheckResult::fail(format!("cargo::{}", subcommand), Severity::Error)
+        .with_detail(format!(
+        "`cargo {}` exited with {} without reporting a failing item (build error or tool failure)",
+        subcommand, code
+    ));
+    if !tail.is_empty() {
+        check = check.with_evidence(Evidence::snippet("stderr", tail));
+    }
+    check
+}
+
+fn last_lines(s: &str, n: usize) -> String {
+    let lines: Vec<&str> = s.lines().collect();
+    let start = lines.len().saturating_sub(n);
+    lines[start..].join("\n")
 }
 
 #[derive(Deserialize)]
@@ -268,6 +371,7 @@ struct CargoMessage {
 struct CompilerMessage {
     level: String,
     message: String,
+    #[serde(default)]
     spans: Vec<CompilerSpan>,
     code: Option<DiagnosticCode>,
     rendered: Option<String>,
@@ -333,12 +437,17 @@ fn parse_cargo_message_line(line: &str) -> Option<CheckResult> {
 fn short_name_from_message(msg: &str) -> String {
     // Diagnostics without a code (e.g. some internal ones) still need a
     // stable-ish name. Take the first line, trim, and cap at 80 chars.
+    // Cut on a char boundary: byte-slicing at 77 panics when a
+    // multi-byte character straddles that offset.
     let first_line = msg.lines().next().unwrap_or("diagnostic").trim();
     if first_line.len() <= 80 {
-        first_line.to_string()
-    } else {
-        format!("{}...", &first_line[..77])
+        return first_line.to_string();
     }
+    let mut cut = 77;
+    while !first_line.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    format!("{}...", &first_line[..cut])
 }
 
 // Local alias so we don't need to `use dev_report::Verdict` only for matching.
@@ -350,12 +459,18 @@ use dev_report::Verdict;
 
 struct CapturedOutput {
     stdout: String,
-    #[allow(dead_code)]
     stderr: String,
     combined: String,
+    success: bool,
+    code: Option<i32>,
+    timed_out: bool,
 }
 
-fn run_cargo(workdir: &Option<PathBuf>, args: &[&str]) -> Result<CapturedOutput, Box<CheckResult>> {
+fn run_cargo(
+    workdir: &Option<PathBuf>,
+    args: &[&str],
+    timeout: Option<Duration>,
+) -> Result<CapturedOutput, Box<CheckResult>> {
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let mut cmd = Command::new(&cargo);
     cmd.args(args);
@@ -363,7 +478,7 @@ fn run_cargo(workdir: &Option<PathBuf>, args: &[&str]) -> Result<CapturedOutput,
         cmd.current_dir(dir);
     }
 
-    let output = match cmd.output() {
+    let output = match crate::process::output(&mut cmd, timeout) {
         Ok(o) => o,
         Err(e) => {
             return Err(Box::new(
@@ -380,6 +495,9 @@ fn run_cargo(workdir: &Option<PathBuf>, args: &[&str]) -> Result<CapturedOutput,
         stdout,
         stderr,
         combined,
+        success: output.status.is_some_and(|s| s.success()),
+        code: output.status.and_then(|s| s.code()),
+        timed_out: output.status.is_none(),
     })
 }
 
@@ -474,6 +592,129 @@ test result: ok. 1 passed; 0 failed; 0 ignored
         let check = parse_cargo_message_line(&line).expect("should parse");
         assert!(check.name.ends_with("..."));
         assert!(check.name.len() <= 80);
+    }
+
+    #[test]
+    fn long_multibyte_message_is_cut_on_a_char_boundary() {
+        // 76 ASCII bytes then a 3-byte char spanning bytes 76..79: a
+        // byte slice at 77 would land inside it and panic.
+        let msg = format!("{}\u{2192}{}", "a".repeat(76), "b".repeat(20));
+        let name = short_name_from_message(&msg);
+        assert_eq!(name, format!("{}...", "a".repeat(76)));
+    }
+
+    #[test]
+    fn spans_field_is_optional() {
+        let line = r#"{"reason":"compiler-message","message":{"level":"warning","message":"w","code":null,"rendered":null}}"#;
+        let check = parse_cargo_message_line(line).expect("should parse");
+        assert!(check.evidence.is_empty());
+    }
+
+    fn captured(success: bool, code: Option<i32>, stderr: &str) -> CapturedOutput {
+        CapturedOutput {
+            stdout: String::new(),
+            stderr: stderr.to_string(),
+            combined: stderr.to_string(),
+            success,
+            code,
+            timed_out: false,
+        }
+    }
+
+    #[test]
+    fn exit_failure_names_the_subcommand_and_keeps_the_stderr_tail() {
+        let stderr: String = (1..=60).map(|i| format!("line {i}\n")).collect();
+        let check = exit_failure("test", &captured(false, Some(101), &stderr));
+        assert_eq!(check.name, "cargo::test");
+        assert_eq!(check.verdict, Verdict::Fail);
+        assert!(check.detail.as_deref().unwrap().contains("exited with 101"));
+        match &check.evidence[0].data {
+            dev_report::EvidenceData::Snippet(s) => {
+                assert!(s.starts_with("line 21\n"), "{s}");
+                assert!(s.ends_with("line 60"), "{s}");
+            }
+            other => panic!("expected snippet, got {other:?}"),
+        }
+        let no_code = exit_failure("check", &captured(false, None, ""));
+        assert!(no_code.detail.as_deref().unwrap().contains("a signal"));
+        assert!(no_code.evidence.is_empty());
+    }
+
+    #[test]
+    fn producers_report_a_build_failure_instead_of_an_empty_pass() {
+        // A crate that does not compile: `cargo test` prints no test
+        // lines and `cargo check` exits non-zero.
+        let dir = std::env::temp_dir().join(format!("dev-tools-producer-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        std::fs::write(
+            dir.join("Cargo.toml"),
+            "[package]\nname = \"broken\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n",
+        )
+        .unwrap();
+        std::fs::write(dir.join("src/lib.rs"), "pub fn f() -> u32 { \"x\" }\n").unwrap();
+
+        let test = cargo_test_producer("broken", "0.1.0")
+            .in_dir(&dir)
+            .produce();
+        assert_eq!(test.overall_verdict(), Verdict::Fail, "{test:?}");
+        assert!(test.checks.iter().any(|c| c.name == "cargo::test"));
+
+        let check = cargo_check_producer("broken", "0.1.0")
+            .in_dir(&dir)
+            .produce();
+        assert_eq!(check.overall_verdict(), Verdict::Fail);
+        assert!(check.checks.iter().any(|c| c.name == "E0308"));
+        // The diagnostic itself is the failure; no extra exit check.
+        assert!(!check.checks.iter().any(|c| c.name == "cargo::check"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn timeout_kills_a_hanging_test_run_and_keeps_finished_results() {
+        let dir = std::env::temp_dir().join(format!("dev-tools-timeout-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        std::fs::write(
+            dir.join("Cargo.toml"),
+            "[package]\nname = \"hangs\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("src/lib.rs"),
+            "#[test]\nfn quick() {}\n\n#[test]\nfn hangs() {\n    std::thread::sleep(std::time::Duration::from_secs(600));\n}\n",
+        )
+        .unwrap();
+        // Build first so the time limit only covers running the tests.
+        let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+        let built = Command::new(cargo)
+            .args(["test", "--no-run"])
+            .current_dir(&dir)
+            .output()
+            .unwrap();
+        assert!(built.status.success(), "{built:?}");
+
+        let started = std::time::Instant::now();
+        let report = cargo_test_producer("hangs", "0.1.0")
+            .in_dir(&dir)
+            .timeout(Duration::from_secs(5))
+            .produce();
+        assert!(
+            started.elapsed() < Duration::from_secs(60),
+            "took {:?}",
+            started.elapsed()
+        );
+        assert_eq!(report.overall_verdict(), Verdict::Fail);
+        assert!(report
+            .checks
+            .iter()
+            .any(|c| c.name == "cargo::test::timeout"));
+        assert!(report
+            .checks
+            .iter()
+            .any(|c| c.name == "quick" && c.verdict == Verdict::Pass));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

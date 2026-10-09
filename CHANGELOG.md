@@ -2,34 +2,101 @@
 
 ## [Unreleased]
 
-## [0.9.10] - 2026-05-18
+## [0.10.0] - 2026-10-09
 
-MSRV rollback (library half) + CLI surface expansion. Folds in the
-`[Unreleased]` work from prior commits into a versioned release.
+Moves to `dev-bench` 0.10 and the reviewed sub-crate releases, adds
+time limits and `dev doctor`, fixes the `dev` CLI's version table and
+build-failure handling, and rolls the library MSRV back to Rust 1.75.
+This replaces the unreleased 0.9.10.
+
+### Breaking
+
+- **`dev-bench` dependency bumped from `0.9` to `0.10`.** `dev_tools::bench`
+  re-exports `dev-bench`, so its major version is part of this crate's
+  API. `dev-bench` 0.10 moved to `mod-alloc` 1.0 (see its changelog);
+  code that only goes through `dev_tools::bench` needs no changes.
+  Projects that also depend on `mod-alloc` 0.9 directly should move to
+  `mod-alloc` 1.
 
 ### Added
 
-- **`dev doctor`** — environment / tool check. Probes `rustc`, `cargo`, `rustup nightly` availability, and every external cargo subcommand the CLI shells out to (`cargo-llvm-cov`, `cargo-audit`, `cargo-deny`, `cargo-udeps`, `cargo-outdated`, `cargo-fuzz`, `cargo-mutants`). Reports each as green-check + version or red-X + install command. Ends with grouped copy-paste install lines for stable vs nightly. `--json` flag emits the same data as a structured object for CI gates that want to fail when specific tools are missing.
-- **`dev async`** — informational stub. The `dev-async` sub-crate is a library helper for writing async test code (timeouts, deadlock detection, task tracking, shutdown probes); it requires user-supplied futures, so there's no generic "run this against any crate" semantic. The CLI now prints a clear architecture explanation + an example library-usage snippet + a link to the crate docs instead of returning "unrecognized subcommand".
-- **`dev stress`** — same shape as `dev async`. `dev-stress` requires the user to implement the `Workload` trait. The stub explains, shows an example, links the crate.
-- **`dev chaos`** — same shape. `dev-chaos` requires `FailureSchedule` construction + injection into the code under test. Stub explains, example, link.
-- All four new stubs accept `--json` to emit machine-readable variants of the explainer text.
+- **`dev doctor`**: checks `rustc`, `cargo`, nightly availability, and
+  every cargo plugin the CLI shells out to (`cargo-llvm-cov`,
+  `cargo-audit`, `cargo-deny`, `cargo-udeps`, `cargo-outdated`,
+  `cargo-fuzz`, `cargo-mutants`), with install commands for the missing
+  ones. `--json` emits the same data for CI gates.
+- **`dev async`**, **`dev stress`**, **`dev chaos`**: these crates are
+  library helpers that need user code, so the commands explain that and
+  show a library example instead of failing with "unrecognized
+  subcommand". `--json` is supported.
+- Time limits. Each producer in `producers` gained a `timeout(Duration)`
+  builder: when it expires the whole cargo process tree, test binaries
+  included, is killed, finished results are kept, and a
+  `cargo::<subcommand>::timeout` failure is added. The CLI exposes
+  `--timeout` on `dev test`, `dev clippy`, `dev check` and
+  `dev coverage`, `--run-timeout` on `dev fuzz` and
+  `--iteration-timeout` on `dev flaky`.
+
+### Fixed
+
+- **A build failure passed.** When the crate did not compile, `cargo
+  test` printed no test lines, the report had no checks, its verdict was
+  Skip, and `dev test` exited 0. The same happened to `dev clippy` /
+  `dev check` when cargo failed without a JSON diagnostic (broken
+  manifest, missing clippy). A non-zero cargo exit with no failing item
+  now adds a `cargo::<subcommand>` failure carrying the tail of stderr.
+- `dev version` showed the versions in the `Cargo.lock` packaged when
+  dev-tools was published, not the versions actually linked. After
+  `cargo install`, a newer sibling patch (for example `dev-report`
+  0.9.7) was reported as the old one. Every sibling crate now exports
+  `VERSION`, and the table reads those. Crates whose feature is off show
+  as "not built in", and the JSON form gains a `linked` field. The
+  `build.rs` that parsed `Cargo.lock` is gone.
+- `dev doctor` reported cargo-llvm-cov, cargo-udeps, cargo-outdated and
+  cargo-mutants as missing when they were installed: it ran the
+  `cargo-<name>` binary directly, which most plugins reject. It now
+  probes `cargo <name> --version`, the way the CLI runs them.
+- Subcommand `--version` output (`dev coverage --version` and the rest)
+  was hard-coded to old numbers; it now shows the linked crate version.
+- A diagnostic without a code and a first line over 80 bytes could
+  panic when a multi-byte character straddled the cut. The name is now
+  cut on a character boundary.
+- A compiler message without a `spans` field was dropped.
+- The subject name and version read from `Cargo.toml` were wrong for
+  `version.workspace = true` (it became `.workspace = true`) and for
+  values followed by a comment. Workspace-inherited versions are now
+  read from the workspace root's `[workspace.package]`.
+- `dev html` on a `MultiReport` that failed to parse reported the error
+  from trying it as a single `Report`; it now reports the `MultiReport`
+  error.
+- The HTML duration histogram overflowed on very large durations.
+- `dev test --full` help claimed it also runs coverage, audit and deps;
+  it runs test, clippy and check.
 
 ### Changed
 
-- **MSRV (library) rolled back from `1.85` to `1.75`.** The `dev-fixtures` 0.9.5 swap of `tempfile` → `mod-tempdir` killed the `getrandom 0.4.2 → edition2024` transitive chain that was the sole reason dev-tools sat at 1.85.
-- **`dev-ci` dependency now pulled with `default-features = false`.** The library half of dev-ci is MSRV 1.75; only its `cli` feature (which pulls clap) requires 1.85. dev-tools' `ci` feature uses dev-ci's library API only, so the umbrella library stays at MSRV 1.75 when the `ci` feature is enabled.
-- README MSRV badge updated from `1.85+` to `1.75+`. Install snippets bumped to `dev-tools = "0.9.10"`.
+- **Library MSRV rolled back from `1.85` to `1.75`.** The `dev`
+  binary still needs 1.85 because of clap. CI now checks both: the
+  library (`--features full`) on 1.75 against an MSRV-compatible
+  lockfile, and the binary on 1.85. Before, only the binary was built.
+- **`dev-ci` is pulled with `default-features = false`**, so the `ci`
+  feature does not bring in clap or its 1.85 requirement.
+- Sibling dependency floors raised to the releases that export
+  `VERSION`: dev-report 0.9.8, dev-fixtures / dev-async / dev-stress /
+  dev-chaos 0.9.5, dev-coverage / dev-deps / dev-fuzz / dev-flaky 0.9.2,
+  dev-security / dev-ci / dev-mutate 0.9.3, dev-bench 0.10.
+- The local `mod-tempdir` / `mod-alloc` clones in CI moved to
+  `../../mod-collection/`, matching the sibling crates' path
+  dependencies.
 
-### Notes — library vs binary MSRV
+### Documentation
 
-- **Library MSRV: 1.75.** Anyone running `cargo add dev-tools` (with any feature combination *except* `cli`) targets 1.75.
-- **Binary MSRV: 1.85.** `cargo install dev-tools --features cli` pulls clap and requires 1.85 to build the `dev` CLI binary. This is a clap-transitive constraint (clap 4.6+'s `clap_derive` / `clap_lex` moved to edition2024); the dev-tools side is not the bottleneck. Library consumers are unaffected.
-- The CLI surface goes from 15 subcommands to **19** (`dev async`, `dev stress`, `dev chaos`, `dev doctor` added). `dev --help` now lists the full set.
-- The `dev stress` / `dev chaos` / `dev async` commands are intentionally informational stubs. Future iteration may add canned modes (`dev stress --hammer`, `dev async --probe`, etc.) once the right defaults are clear.
-- `dev doctor` is fully implemented and ready to use; subsequent releases may add more probes (workspace detection, lock-file freshness, dev-tools-itself-out-of-date warnings).
+- README: command list includes `version`, `doctor`, `async`, `stress`
+  and `chaos`; new "Time limits" section; the dev-coverage row said
+  "kill rates"; the Status and MSRV sections are current; install
+  snippets name 0.10.
 
-[0.9.10]: https://github.com/jamesgober/dev-tools/releases/tag/v0.9.10
+[0.10.0]: https://github.com/jamesgober/dev-tools/releases/tag/v0.10.0
 
 ## [0.9.9] - 2026-05-12
 

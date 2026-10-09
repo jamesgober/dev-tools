@@ -9,6 +9,7 @@ use std::fs;
 use std::io::{self, IsTerminal as _, Write as _};
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::time::Duration;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
@@ -183,11 +184,16 @@ impl CommonOutputArgs {
 
 #[derive(Debug, Args)]
 struct TestArgs {
-    /// Run the full available verification stack (test + clippy + check,
-    /// plus coverage / audit / deps when their underlying tools are
-    /// installed). Without `--full`, only `cargo test` runs.
+    /// Run `cargo test`, `cargo clippy` and `cargo check` and aggregate
+    /// them into one MultiReport. Without `--full`, only `cargo test`
+    /// runs.
     #[arg(long)]
     full: bool,
+
+    /// Kill cargo (and the test binaries it started) after this many
+    /// seconds and report a timeout failure. Off by default.
+    #[arg(long, value_name = "SECS")]
+    timeout: Option<u64>,
 
     #[command(flatten)]
     common: CommonOutputArgs,
@@ -195,6 +201,11 @@ struct TestArgs {
 
 #[derive(Debug, Args)]
 struct SimpleProducerArgs {
+    /// Kill cargo (and the test binaries it started) after this many
+    /// seconds and report a timeout failure. Off by default.
+    #[arg(long, value_name = "SECS")]
+    timeout: Option<u64>,
+
     #[command(flatten)]
     common: CommonOutputArgs,
 }
@@ -214,7 +225,7 @@ struct BenchArgs {
 }
 
 #[derive(Debug, Args)]
-#[command(version = "0.9.1")]
+#[command(version = dev_coverage::VERSION)]
 struct CoverageArgs {
     /// Minimum line coverage % required to pass (e.g. `--threshold 80`).
     /// Below this, the produced CheckResult is `Fail`.
@@ -229,12 +240,17 @@ struct CoverageArgs {
     #[arg(long)]
     features: Option<String>,
 
+    /// Kill cargo-llvm-cov (and everything it started) after this many
+    /// seconds. Off by default.
+    #[arg(long, value_name = "SECS")]
+    timeout: Option<u64>,
+
     #[command(flatten)]
     common: CommonOutputArgs,
 }
 
 #[derive(Debug, Args)]
-#[command(version = "0.9.2")]
+#[command(version = dev_security::VERSION)]
 struct AuditArgs {
     /// What to check: `all` (audit + deny), `audit` only, or `deny` only.
     #[arg(long, short = 's', value_enum, default_value_t = AuditScopeArg::All)]
@@ -259,7 +275,7 @@ enum AuditScopeArg {
 }
 
 #[derive(Debug, Args)]
-#[command(version = "0.9.1")]
+#[command(version = dev_deps::VERSION)]
 struct DepsArgs {
     /// Only check udeps (unused). Skip cargo-outdated.
     #[arg(long)]
@@ -274,7 +290,7 @@ struct DepsArgs {
 }
 
 #[derive(Debug, Args)]
-#[command(version = "0.9.1")]
+#[command(version = dev_fuzz::VERSION)]
 struct FuzzArgs {
     /// Name of the fuzz target to run.
     target: String,
@@ -287,12 +303,18 @@ struct FuzzArgs {
     #[arg(long, default_value = "address")]
     sanitizer: String,
 
+    /// Hard wall-clock limit for the whole run (build included), in
+    /// seconds. The budget alone does not stop a slow build or a single
+    /// slow input. Off by default.
+    #[arg(long, value_name = "SECS")]
+    run_timeout: Option<u64>,
+
     #[command(flatten)]
     common: CommonOutputArgs,
 }
 
 #[derive(Debug, Args)]
-#[command(version = "0.9.2")]
+#[command(version = dev_mutate::VERSION)]
 struct MutateArgs {
     /// Minimum kill rate % required to pass (default 70).
     #[arg(long, short = 't', default_value_t = 70.0)]
@@ -311,15 +333,22 @@ struct MutateArgs {
 }
 
 #[derive(Debug, Args)]
-#[command(version = "0.9.1")]
+#[command(version = dev_flaky::VERSION)]
 struct FlakyArgs {
     /// Number of test iterations to run.
     #[arg(long, short = 'n', default_value_t = 10)]
     iterations: u32,
 
-    /// Minimum reliability % required for a test to be classified stable.
+    /// Reliability % threshold passed to dev-flaky. A test that failed
+    /// in any iteration is already flaky or broken, so this rarely
+    /// changes the result.
     #[arg(long, short = 'r', default_value_t = 90.0)]
     reliability_threshold: f64,
+
+    /// Kill an iteration whose `cargo test` runs longer than this many
+    /// seconds, record the hang, and move on. Off by default.
+    #[arg(long, value_name = "SECS")]
+    iteration_timeout: Option<u64>,
 
     /// Pass `--workspace` to each cargo test invocation.
     #[arg(long)]
@@ -334,7 +363,7 @@ struct FlakyArgs {
 }
 
 #[derive(Debug, Args)]
-#[command(version = "0.9.2")]
+#[command(version = dev_ci::VERSION)]
 struct CiArgs {
     /// Where to write the workflow file. `-` writes to stdout.
     #[arg(long, short = 'o', default_value = ".github/workflows/ci.yml")]
@@ -529,9 +558,24 @@ fn run_html(args: HtmlArgs) -> CliResult {
     // Accept either a single Report or a MultiReport — wrap a singleton.
     let multi: MultiReport = match MultiReport::from_json(&text) {
         Ok(m) => m,
-        Err(_) => {
-            let report = Report::from_json(&text)
-                .map_err(|e| format!("not a Report or MultiReport JSON: {e}"))?;
+        Err(multi_err) => {
+            // Report the error for the shape the document claims to be:
+            // a MultiReport has a top-level `reports` array.
+            let looks_multi = serde_json::from_str::<serde_json::Value>(&text)
+                .map(|v| v.get("reports").is_some())
+                .unwrap_or(false);
+            if looks_multi {
+                return Err(format!(
+                    "parse {} as MultiReport: {multi_err}",
+                    args.path.display()
+                ));
+            }
+            let report = Report::from_json(&text).map_err(|e| {
+                format!(
+                    "parse {}: not a Report or MultiReport JSON: {e}",
+                    args.path.display()
+                )
+            })?;
             let mut m = MultiReport::new(&report.subject, &report.subject_version);
             m.push(report);
             m.finish();
@@ -562,7 +606,12 @@ fn run_test(args: TestArgs) -> CliResult {
     if args.full {
         // Full stack: test + clippy + check, aggregated into a MultiReport.
         let mut multi = MultiReport::new(&subject, &version);
-        for (label, report) in run_full_stack(&subject, &version, args.common.workdir.as_deref()) {
+        for (label, report) in run_full_stack(
+            &subject,
+            &version,
+            args.common.workdir.as_deref(),
+            args.timeout,
+        ) {
             if !args.common.quiet {
                 eprintln!("=> {label} ({} checks)", report.checks.len());
             }
@@ -575,6 +624,9 @@ fn run_test(args: TestArgs) -> CliResult {
         let mut p = dev_tools::producers::cargo_test_producer(&subject, &version);
         if let Some(d) = args.common.workdir.as_deref() {
             p = p.in_dir(d);
+        }
+        if let Some(secs) = args.timeout {
+            p = p.timeout(Duration::from_secs(secs));
         }
         let report = p.produce();
         render_report(&report, &args.common)?;
@@ -590,6 +642,9 @@ fn run_clippy(args: SimpleProducerArgs) -> CliResult {
     if let Some(d) = args.common.workdir.as_deref() {
         p = p.in_dir(d);
     }
+    if let Some(secs) = args.timeout {
+        p = p.timeout(Duration::from_secs(secs));
+    }
     let report = p.produce();
     render_report(&report, &args.common)?;
     Ok(exit_for_verdict(report.overall_verdict()))
@@ -602,6 +657,9 @@ fn run_check(args: SimpleProducerArgs) -> CliResult {
     let mut p = dev_tools::producers::cargo_check_producer(&subject, &version);
     if let Some(d) = args.common.workdir.as_deref() {
         p = p.in_dir(d);
+    }
+    if let Some(secs) = args.timeout {
+        p = p.timeout(Duration::from_secs(secs));
     }
     let report = p.produce();
     render_report(&report, &args.common)?;
@@ -616,15 +674,21 @@ fn run_full_stack(
     subject: &str,
     version: &str,
     workdir: Option<&std::path::Path>,
+    timeout_secs: Option<u64>,
 ) -> Vec<(&'static str, Report)> {
     use dev_tools::report::Producer;
 
     let mut out = Vec::new();
 
     // 1. cargo test
+    let limit = timeout_secs.map(Duration::from_secs);
+
     let mut p = dev_tools::producers::cargo_test_producer(subject, version);
     if let Some(d) = workdir {
         p = p.in_dir(d);
+    }
+    if let Some(t) = limit {
+        p = p.timeout(t);
     }
     out.push(("cargo test", p.produce()));
 
@@ -633,12 +697,18 @@ fn run_full_stack(
     if let Some(d) = workdir {
         p = p.in_dir(d);
     }
+    if let Some(t) = limit {
+        p = p.timeout(t);
+    }
     out.push(("cargo clippy", p.produce()));
 
     // 3. cargo check (separate from clippy to surface non-lint errors)
     let mut p = dev_tools::producers::cargo_check_producer(subject, version);
     if let Some(d) = workdir {
         p = p.in_dir(d);
+    }
+    if let Some(t) = limit {
+        p = p.timeout(t);
     }
     out.push(("cargo check", p.produce()));
 
@@ -706,6 +776,9 @@ fn run_coverage(args: CoverageArgs) -> CliResult {
     }
     if let Some(d) = args.common.workdir.as_deref() {
         run = run.in_dir(d);
+    }
+    if let Some(secs) = args.timeout {
+        run = run.timeout(Duration::from_secs(secs));
     }
 
     let result = run.execute().map_err(|e| format!("coverage failed: {e}"))?;
@@ -806,6 +879,9 @@ fn run_fuzz(args: FuzzArgs) -> CliResult {
     if let Some(d) = args.common.workdir.as_deref() {
         run = run.in_dir(d);
     }
+    if let Some(secs) = args.run_timeout {
+        run = run.run_timeout(Duration::from_secs(secs));
+    }
 
     let result = run.execute().map_err(|e| format!("fuzz failed: {e}"))?;
     let report = result.into_report();
@@ -864,6 +940,9 @@ fn run_flaky(args: FlakyArgs) -> CliResult {
     if let Some(d) = args.common.workdir.as_deref() {
         run = run.in_dir(d);
     }
+    if let Some(secs) = args.iteration_timeout {
+        run = run.iteration_timeout(Duration::from_secs(secs));
+    }
 
     let result = run
         .execute()
@@ -877,12 +956,57 @@ fn run_flaky(args: FlakyArgs) -> CliResult {
 // `dev version` — print component versions
 // =============================================================================
 //
-// The `SIBLINGS` table is generated at compile-time by `build.rs` from
-// the actual resolved versions in `Cargo.lock`. This means `dev version`
-// reports exactly what's linked into the binary — there's no
-// hand-maintained table to drift away from reality.
+// Each sibling crate exports `VERSION` (its own `CARGO_PKG_VERSION`), so
+// the table below shows exactly the versions linked into this binary,
+// whatever the resolver picked at install time. Crates whose feature is
+// off are not linked at all and show as "not built in".
 
-include!(concat!(env!("OUT_DIR"), "/siblings.rs"));
+macro_rules! linked_version {
+    ($name:ident, $feature:literal, $version:path) => {
+        #[cfg(feature = $feature)]
+        const $name: Option<&str> = Some($version);
+        #[cfg(not(feature = $feature))]
+        const $name: Option<&str> = None;
+    };
+}
+
+linked_version!(V_FIXTURES, "fixtures", dev_fixtures::VERSION);
+linked_version!(V_BENCH, "bench", dev_bench::VERSION);
+linked_version!(V_ASYNC, "async", dev_async::VERSION);
+linked_version!(V_STRESS, "stress", dev_stress::VERSION);
+linked_version!(V_CHAOS, "chaos", dev_chaos::VERSION);
+linked_version!(V_COVERAGE, "coverage", dev_coverage::VERSION);
+linked_version!(V_SECURITY, "security", dev_security::VERSION);
+linked_version!(V_DEPS, "deps", dev_deps::VERSION);
+linked_version!(V_CI, "ci", dev_ci::VERSION);
+linked_version!(V_FUZZ, "fuzz", dev_fuzz::VERSION);
+linked_version!(V_FLAKY, "flaky", dev_flaky::VERSION);
+linked_version!(V_MUTATE, "mutate", dev_mutate::VERSION);
+
+/// `(alias, crate name, linked version)` for every crate in the suite,
+/// in the order `dev version` prints them. `None` means the crate's
+/// feature was off when this binary was built.
+type Sibling = (&'static str, &'static str, Option<&'static str>);
+
+const SIBLINGS: &[Sibling] = &[
+    ("report", "dev-report", Some(dev_tools::report::VERSION)),
+    ("tools", "dev-tools", Some(env!("CARGO_PKG_VERSION"))),
+    ("fixtures", "dev-fixtures", V_FIXTURES),
+    ("bench", "dev-bench", V_BENCH),
+    ("async", "dev-async", V_ASYNC),
+    ("stress", "dev-stress", V_STRESS),
+    ("chaos", "dev-chaos", V_CHAOS),
+    ("coverage", "dev-coverage", V_COVERAGE),
+    ("security", "dev-security", V_SECURITY),
+    ("deps", "dev-deps", V_DEPS),
+    ("ci", "dev-ci", V_CI),
+    ("fuzz", "dev-fuzz", V_FUZZ),
+    ("flaky", "dev-flaky", V_FLAKY),
+    ("mutate", "dev-mutate", V_MUTATE),
+];
+
+/// Label shown for a crate that is not linked into this binary.
+const NOT_BUILT_IN: &str = "not built in";
 
 fn run_version(args: VersionArgs) -> CliResult {
     let dev_version = env!("CARGO_PKG_VERSION");
@@ -912,6 +1036,7 @@ fn run_version(args: VersionArgs) -> CliResult {
                         "alias": alias,
                         "name": name,
                         "version": version,
+                        "linked": version.is_some(),
                     })
                 })
                 .collect::<Vec<_>>(),
@@ -925,7 +1050,13 @@ fn run_version(args: VersionArgs) -> CliResult {
     if let Some(name) = args.component.as_deref() {
         let normalized = normalize_component(name);
         let row = lookup_sibling(normalized).ok_or_else(|| unknown_component_msg(name))?;
-        println!("{} {}", row.1, row.2);
+        match row.2 {
+            Some(v) => println!("{} {}", row.1, v),
+            None => println!(
+                "{} {} (enable the `{}` feature to include it)",
+                row.1, NOT_BUILT_IN, row.0
+            ),
+        }
         return Ok(ExitCode::SUCCESS);
     }
 
@@ -947,12 +1078,11 @@ fn run_version(args: VersionArgs) -> CliResult {
     println!("  {}", paint("components", C_BOLD, color));
     let crate_w = SIBLINGS.iter().map(|(_, c, _)| c.len()).max().unwrap_or(12);
     for (_, crate_name, version) in SIBLINGS {
-        println!(
-            "    {:<width$}   {}",
-            crate_name,
-            paint(version, C_GREEN, color),
-            width = crate_w,
-        );
+        let shown = match version {
+            Some(v) => paint(v, C_GREEN, color),
+            None => paint(NOT_BUILT_IN, C_DIM, color),
+        };
+        println!("    {:<width$}   {}", crate_name, shown, width = crate_w);
     }
     println!();
     println!(
@@ -975,9 +1105,7 @@ fn normalize_component(name: &str) -> String {
     lower.strip_prefix("dev-").unwrap_or(&lower).to_string()
 }
 
-fn lookup_sibling(
-    normalized_alias: String,
-) -> Option<&'static (&'static str, &'static str, &'static str)> {
+fn lookup_sibling(normalized_alias: String) -> Option<&'static Sibling> {
     SIBLINGS
         .iter()
         .find(|(alias, _, _)| *alias == normalized_alias)
@@ -1237,7 +1365,7 @@ fn run_doctor(args: DoctorArgs) -> CliResult {
 
     let tool_results: Vec<(&ExternalTool, Option<String>)> = EXTERNAL_TOOLS
         .iter()
-        .map(|t| (t, probe_version(t.binary, &["--version"])))
+        .map(|t| (t, probe_cargo_subcommand(t.binary)))
         .collect();
 
     if args.json {
@@ -1388,6 +1516,15 @@ fn run_doctor(args: DoctorArgs) -> CliResult {
     } else {
         ExitCode::from(1)
     })
+}
+
+/// Probe a cargo plugin the way the CLI runs it: `cargo <sub> --version`.
+/// Running the `cargo-<sub>` binary directly does not work for most
+/// plugins (cargo-llvm-cov, cargo-mutants and others expect cargo to pass
+/// the subcommand name first and reject a bare `--version`).
+fn probe_cargo_subcommand(binary: &str) -> Option<String> {
+    let sub = binary.strip_prefix("cargo-").unwrap_or(binary);
+    probe_version("cargo", &[sub, "--version"])
 }
 
 fn probe_version(bin: &str, args: &[&str]) -> Option<String> {
@@ -1571,42 +1708,93 @@ fn cargo_metadata(workdir: Option<&std::path::Path>) -> Option<CargoMeta> {
     let base = workdir
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| std::env::current_dir().ok().unwrap_or_default());
-    let manifest = base.join("Cargo.toml");
-    let text = fs::read_to_string(manifest).ok()?;
+    let text = fs::read_to_string(base.join("Cargo.toml")).ok()?;
 
-    let mut name = None;
-    let mut version = None;
-    let mut in_package = false;
+    let name = match table_value(&text, "package", "name")? {
+        ManifestValue::Str(s) => s,
+        ManifestValue::Workspace => return None,
+    };
+    let version = match table_value(&text, "package", "version") {
+        Some(ManifestValue::Str(s)) => s,
+        // `version.workspace = true`: read `[workspace.package]` from
+        // the nearest ancestor manifest that has it.
+        Some(ManifestValue::Workspace) => workspace_package_version(&base)?,
+        None => return None,
+    };
+    Some(CargoMeta { name, version })
+}
+
+enum ManifestValue {
+    Str(String),
+    Workspace,
+}
+
+/// Find `key` in `[table]` of a Cargo.toml. Understands `key = "v"`
+/// (with or without a trailing comment), single-quoted literals,
+/// `key.workspace = true`, and `key = { workspace = true }`.
+fn table_value(text: &str, table: &str, key: &str) -> Option<ManifestValue> {
+    let header = format!("[{table}]");
+    let mut in_table = false;
     for line in text.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with('[') {
-            in_package = trimmed == "[package]";
+            in_table = trimmed.split('#').next().map(str::trim) == Some(header.as_str());
             continue;
         }
-        if !in_package {
+        if !in_table {
             continue;
         }
-        if let Some(rest) = trimmed.strip_prefix("name") {
-            name = extract_quoted(rest);
-        } else if let Some(rest) = trimmed.strip_prefix("version") {
-            version = extract_quoted(rest);
+        let Some((lhs, rhs)) = trimmed.split_once('=') else {
+            continue;
+        };
+        let lhs: String = lhs.chars().filter(|c| !c.is_whitespace()).collect();
+        let rhs = rhs.trim();
+        if lhs == format!("{key}.workspace") {
+            if rhs.starts_with("true") {
+                return Some(ManifestValue::Workspace);
+            }
+            continue;
         }
+        if lhs != key {
+            continue;
+        }
+        if rhs.starts_with('{') {
+            let inner: String = rhs.chars().filter(|c| !c.is_whitespace()).collect();
+            if inner.contains("workspace=true") {
+                return Some(ManifestValue::Workspace);
+            }
+            continue;
+        }
+        return quoted_value(rhs).map(ManifestValue::Str);
     }
-    Some(CargoMeta {
-        name: name?,
-        version: version?,
-    })
+    None
 }
 
-fn extract_quoted(s: &str) -> Option<String> {
-    let s = s.trim_start_matches(|c: char| c == '=' || c.is_whitespace());
-    let s = s.trim_end_matches(|c: char| c.is_whitespace() || c == ',');
-    let s = s.trim_matches('"');
-    if s.is_empty() {
+/// The contents of a TOML basic (`"..."`) or literal (`'...'`) string at
+/// the start of `s`, ignoring anything after the closing quote.
+fn quoted_value(s: &str) -> Option<String> {
+    let quote = s.chars().next().filter(|c| *c == '"' || *c == '\'')?;
+    let rest = &s[1..];
+    let end = rest.find(quote)?;
+    let value = &rest[..end];
+    if value.is_empty() {
         None
     } else {
-        Some(s.to_string())
+        Some(value.to_string())
     }
+}
+
+fn workspace_package_version(start: &std::path::Path) -> Option<String> {
+    let start = start.canonicalize().unwrap_or_else(|_| start.to_path_buf());
+    for dir in start.ancestors() {
+        let Ok(text) = fs::read_to_string(dir.join("Cargo.toml")) else {
+            continue;
+        };
+        if let Some(ManifestValue::Str(v)) = table_value(&text, "workspace.package", "version") {
+            return Some(v);
+        }
+    }
+    None
 }
 
 // =============================================================================
@@ -1832,4 +2020,70 @@ fn pretty_multi(multi: &MultiReport, color: bool) -> String {
     ));
     out.push_str("\n\n");
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn str_value(text: &str, table: &str, key: &str) -> Option<String> {
+        match table_value(text, table, key)? {
+            ManifestValue::Str(s) => Some(s),
+            ManifestValue::Workspace => Some("<workspace>".to_string()),
+        }
+    }
+
+    #[test]
+    fn manifest_values_ignore_comments_and_other_tables() {
+        let text = r#"
+[package]
+name = "demo" # the crate
+version = '1.2.3'
+rust-version = "1.75"
+
+[dependencies]
+name = "not-this"
+"#;
+        assert_eq!(str_value(text, "package", "name").as_deref(), Some("demo"));
+        assert_eq!(
+            str_value(text, "package", "version").as_deref(),
+            Some("1.2.3")
+        );
+        assert_eq!(str_value(text, "package", "edition"), None);
+    }
+
+    #[test]
+    fn manifest_values_detect_workspace_inheritance() {
+        let dotted = "[package]\nname = \"a\"\nversion.workspace = true\n";
+        assert_eq!(
+            str_value(dotted, "package", "version").as_deref(),
+            Some("<workspace>")
+        );
+        let inline = "[package]\nname = \"a\"\nversion = { workspace = true }\n";
+        assert_eq!(
+            str_value(inline, "package", "version").as_deref(),
+            Some("<workspace>")
+        );
+    }
+
+    #[test]
+    fn workspace_version_is_read_from_the_root_manifest() {
+        let root = std::env::temp_dir().join(format!("dev-cli-ws-{}", std::process::id()));
+        let member = root.join("crates").join("a");
+        fs::create_dir_all(&member).unwrap();
+        fs::write(
+            root.join("Cargo.toml"),
+            "[workspace]\nmembers = [\"crates/a\"]\n\n[workspace.package]\nversion = \"4.5.6\"\n",
+        )
+        .unwrap();
+        fs::write(
+            member.join("Cargo.toml"),
+            "[package]\nname = \"a\"\nversion.workspace = true\n",
+        )
+        .unwrap();
+        let meta = cargo_metadata(Some(&member)).expect("metadata");
+        assert_eq!(meta.name, "a");
+        assert_eq!(meta.version, "4.5.6");
+        let _ = fs::remove_dir_all(&root);
+    }
 }

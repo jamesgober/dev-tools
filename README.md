@@ -61,7 +61,7 @@ Pick features by what you want to verify:
 | `async` | — | [`dev-async`](https://crates.io/crates/dev-async) — `run_with_timeout`, deadlock detection, task tracking, shutdown probes | Hung futures, task leaks, shutdown verification. |
 | `stress` | — | [`dev-stress`](https://crates.io/crates/dev-stress) — `StressRun`, `SoakRun`, latency percentiles | High-load and sustained-load testing. |
 | `chaos` | — | [`dev-chaos`](https://crates.io/crates/dev-chaos) — failure injection, latency injection, crash points, IO wrappers | Failure-recovery testing. |
-| `coverage` | — | [`dev-coverage`](https://crates.io/crates/dev-coverage) — wraps `cargo-llvm-cov`; line / function / region kill rates; baseline diff | "Did this PR drop coverage below 80%?" |
+| `coverage` | — | [`dev-coverage`](https://crates.io/crates/dev-coverage) — wraps `cargo-llvm-cov`; line / function / region coverage; baseline diff | "Did this PR drop coverage below 80%?" |
 | `security` | — | [`dev-security`](https://crates.io/crates/dev-security) — wraps `cargo-audit` + `cargo-deny`; CVE scan + license + banned-crate policy | "Any vulnerable dependencies?" |
 | `deps` | — | [`dev-deps`](https://crates.io/crates/dev-deps) — wraps `cargo-udeps` + `cargo-outdated`; unused + outdated + major-lag findings | "Are we behind on the dep tree?" |
 | `ci` | — | [`dev-ci`](https://crates.io/crates/dev-ci) — `Generator` builder for GitHub Actions workflow YAML | "Keep the CI workflow in sync with the feature set." |
@@ -78,7 +78,7 @@ Pick features by what you want to verify:
 
 ```toml
 [dependencies]
-dev-tools = "0.9.10"
+dev-tools = "0.10"
 ```
 
 You get: `report` (always), `fixtures`, `bench`.
@@ -87,7 +87,7 @@ You get: `report` (always), `fixtures`, `bench`.
 
 ```toml
 [dependencies]
-dev-tools = { version = "0.9.10", default-features = false }
+dev-tools = { version = "0.10", default-features = false }
 ```
 
 You get: `report` only. No `fixtures`, no `bench`. Ideal when you
@@ -99,32 +99,32 @@ Pick exactly what you need. Examples:
 
 ```toml
 # Async-heavy service: schema + async helpers, no fixtures/bench.
-dev-tools = { version = "0.9.10", default-features = false, features = ["async"] }
+dev-tools = { version = "0.10", default-features = false, features = ["async"] }
 ```
 
 ```toml
 # Defaults plus async (additive).
-dev-tools = { version = "0.9.10", features = ["async"] }
+dev-tools = { version = "0.10", features = ["async"] }
 ```
 
 ```toml
 # Defaults plus chaos and stress.
-dev-tools = { version = "0.9.10", features = ["chaos", "stress"] }
+dev-tools = { version = "0.10", features = ["chaos", "stress"] }
 ```
 
 ```toml
 # Library shipping to production: coverage + security + deps + flaky.
-dev-tools = { version = "0.9.10", features = ["coverage", "security", "deps", "flaky"] }
+dev-tools = { version = "0.10", features = ["coverage", "security", "deps", "flaky"] }
 ```
 
 ```toml
 # Mutation-testing + fuzz harness with default test environments.
-dev-tools = { version = "0.9.10", features = ["mutate", "fuzz"] }
+dev-tools = { version = "0.10", features = ["mutate", "fuzz"] }
 ```
 
 ```toml
 # Everything (CI verification rigs, AI agents that drive the whole suite).
-dev-tools = { version = "0.9.10", features = ["full"] }
+dev-tools = { version = "0.10", features = ["full"] }
 ```
 
 ### Toggle features off
@@ -134,7 +134,7 @@ dev-tools = { version = "0.9.10", features = ["full"] }
 
 ```toml
 # Async + chaos, NO fixtures/bench.
-dev-tools = { version = "0.9.10", default-features = false, features = ["async", "chaos"] }
+dev-tools = { version = "0.10", default-features = false, features = ["async", "chaos"] }
 ```
 
 ## API map
@@ -416,8 +416,8 @@ cargo install --git https://github.com/jamesgober/dev-tools --features cli
 Verify the install:
 
 ```bash
-dev --version            # prints `dev 0.9.10`
-dev version              # prints the full component table
+dev --version            # prints `dev 0.10.0`
+dev version              # prints the linked version of every component
 ```
 
 Uninstall:
@@ -470,6 +470,26 @@ dev ci                 generate GitHub Actions workflow YAML
 dev report <path>      pretty-print a Report from disk
 dev diff <a> <b>       diff two reports
 dev html <path>        render to a self-contained HTML file
+
+dev version [name]     linked version of each component (--json)
+dev doctor             check rustc, cargo, nightly and every external tool
+dev async | stress | chaos
+                       explain the library-only crates, with an example
+```
+
+#### Time limits
+
+A hung test or tool otherwise blocks a command forever. These flags
+kill the whole process tree (cargo, the tool, and any test binaries it
+started) when the limit expires, keep the results gathered so far, and
+report the timeout as a failure:
+
+```text
+dev test / clippy / check   --timeout SECS
+dev coverage                --timeout SECS
+dev fuzz                    --run-timeout SECS   (the budget does not cover the build)
+dev flaky                   --iteration-timeout SECS
+dev mutate                  --timeout SECS       (per mutant, passed to cargo-mutants)
 ```
 
 #### Common flags
@@ -554,10 +574,11 @@ APIs are expected to be near-final; minor adjustments may still
 happen ahead of `1.0`. The schema (`dev-report`) stays at
 `schema_version = 1` through this line.
 
-Sub-crate dependency constraints are pinned at `^0.9` (any 0.9.x).
-The umbrella crate does not require a coordinated patch release of
-the sibling crates; you can safely use `dev-tools 0.9.5` alongside
-sibling crates at any 0.9.x version.
+Each sub-crate dependency has a floor at the first release that
+exports `VERSION` (which `dev version` reads), and accepts any later
+compatible release, so sibling patch releases reach you without a new
+`dev-tools` release. `dev-tools` 0.10 moved to `dev-bench` 0.10,
+which is why the umbrella's minor version changed.
 
 ## Roadmap
 
@@ -582,10 +603,9 @@ release time.
 
 ## Minimum supported Rust version
 
-`1.85` — pinned in `Cargo.toml` via `rust-version` and verified by
-the MSRV job in CI. (Bumped from 1.75 to match sibling sub-crate
-MSRVs after their transitive deps required Rust 1.81+ and
-`edition2024`.)
+The library is `1.75`, pinned in `Cargo.toml` via `rust-version` and
+verified by the MSRV job in CI. The `dev` binary (`cli` feature) pulls
+clap, whose current releases need Rust `1.85`; CI builds it on 1.85.
 
 ## License
 

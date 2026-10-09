@@ -1,6 +1,6 @@
 [package]
 name = "dev-tools"
-version = "0.9.10"
+version = "0.10.0"
 edition = "2021"
 rust-version = "1.75"
 readme = "README.md"
@@ -36,9 +36,9 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Core: report schema is required for the umbrella to make sense.
-# `^0.9` SemVer requirement matches any 0.9.x — keeps dev-tools
-# decoupled from coordinated patch releases of the sibling crates.
-dev-report = { version = "0.9", path = "../dev-report" }
+# Each sibling's floor is the first release that exports `VERSION`,
+# which `dev version` reads; any later patch release still resolves.
+dev-report = { version = "0.9.8", path = "../dev-report" }
 
 # Used by `producers` (cargo JSON message parsing) and the HTML
 # meta-report. Already in the transitive tree via dev-report; declared
@@ -51,21 +51,21 @@ serde_json = "1.0"
 clap = { version = "4", features = ["derive"], optional = true }
 
 # Optional sub-crates pulled in by feature flags.
-dev-fixtures = { version = "0.9", path = "../dev-fixtures", optional = true }
-dev-bench    = { version = "0.9", path = "../dev-bench",    optional = true }
-dev-async    = { version = "0.9", path = "../dev-async",    optional = true }
-dev-stress   = { version = "0.9", path = "../dev-stress",   optional = true }
-dev-chaos    = { version = "0.9", path = "../dev-chaos",    optional = true }
+dev-fixtures = { version = "0.9.5", path = "../dev-fixtures", optional = true }
+dev-bench    = { version = "0.10", path = "../dev-bench",    optional = true }
+dev-async    = { version = "0.9.5", path = "../dev-async",    optional = true }
+dev-stress   = { version = "0.9.5", path = "../dev-stress",   optional = true }
+dev-chaos    = { version = "0.9.5", path = "../dev-chaos",    optional = true }
 
 # Added in v0.9.4. Each one is independently opt-in; `full` pulls in
 # everything.
-dev-coverage = { version = "0.9", path = "../dev-coverage", optional = true }
-dev-security = { version = "0.9", path = "../dev-security", optional = true }
-dev-deps     = { version = "0.9", path = "../dev-deps",     optional = true }
-dev-ci       = { version = "0.9", path = "../dev-ci",       optional = true, default-features = false }
-dev-fuzz     = { version = "0.9", path = "../dev-fuzz",     optional = true }
-dev-flaky    = { version = "0.9", path = "../dev-flaky",    optional = true }
-dev-mutate   = { version = "0.9", path = "../dev-mutate",   optional = true }
+dev-coverage = { version = "0.9.2", path = "../dev-coverage", optional = true }
+dev-security = { version = "0.9.3", path = "../dev-security", optional = true }
+dev-deps     = { version = "0.9.2", path = "../dev-deps",     optional = true }
+dev-ci       = { version = "0.9.3", path = "../dev-ci",       optional = true, default-features = false }
+dev-fuzz     = { version = "0.9.2", path = "../dev-fuzz",     optional = true }
+dev-flaky    = { version = "0.9.2", path = "../dev-flaky",    optional = true }
+dev-mutate   = { version = "0.9.3", path = "../dev-mutate",   optional = true }
 
 [dev-dependencies]
 # Used by html-module tests to construct frozen timestamps so HTML

@@ -432,16 +432,14 @@ fn write_histogram(out: &mut String, sorted_durations: &[u64], min: u64, max: u6
         let x = i as u32 * bar_w;
         let h = ((bin as f64 / max_bin as f64) * (height - 10) as f64).round() as u32;
         let y = height - h;
-        let bucket_lo = if max == min {
-            min
-        } else {
-            min + (max - min) * i as u64 / buckets as u64
+        // Widen to u128: `(max - min) * 10` overflows u64 for very
+        // large durations. The result is always <= max, so it fits back.
+        let edge = |k: usize| -> u64 {
+            let span = u128::from(max - min) * k as u128 / buckets as u128;
+            min + span as u64
         };
-        let bucket_hi = if max == min {
-            max
-        } else {
-            min + (max - min) * (i as u64 + 1) / buckets as u64
-        };
+        let bucket_lo = if max == min { min } else { edge(i) };
+        let bucket_hi = if max == min { max } else { edge(i + 1) };
         write!(
             out,
             "        <rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"var(--color-accent)\"><title>{}\u{2013}{} ms — {} sample{}</title></rect>\n",
@@ -731,6 +729,18 @@ mod tests {
     fn footer_contains_brand_footer_constant() {
         let html = multi_report_to_html(&frozen_multi());
         assert!(html.contains(brand::FOOTER));
+    }
+
+    #[test]
+    fn histogram_handles_huge_durations_without_overflow() {
+        let mut r = Report::new("c", "0.1.0").with_producer("p");
+        r.push(CheckResult::pass("a").with_duration_ms(0));
+        r.push(CheckResult::pass("b").with_duration_ms(u64::MAX));
+        let mut multi = MultiReport::new("c", "0.1.0");
+        multi.push(r);
+        let html = multi_report_to_html(&multi);
+        assert!(html.contains(&format!("{} ms max", u64::MAX)));
+        assert!(html.contains(&format!("\u{2013}{} ms", u64::MAX)));
     }
 
     #[test]

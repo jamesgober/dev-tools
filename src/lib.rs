@@ -1,6 +1,6 @@
 //! # dev-tools
 //!
-//! Modular verification toolkit for AI-assisted Rust development.
+//! Modular verification toolkit for Rust.
 //! Umbrella crate over the `dev-*` suite.
 //!
 //! `dev-tools` is the convenient one-import entry point. Pick the
@@ -34,7 +34,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! dev-tools = "0.9.2"
+//! dev-tools = "0.10"
 //! ```
 //!
 //! ```rust
@@ -70,6 +70,8 @@ pub use dev_report as report;
 pub mod brand;
 pub mod html;
 pub mod producers;
+
+mod process;
 
 /// Extension trait providing [`to_html`](Self::to_html) on
 /// [`dev_report::MultiReport`].
