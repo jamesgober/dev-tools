@@ -2,6 +2,45 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-12
+
+Moves to the latest sub-crate releases, all from crates.io, and fixes
+how `dev test` reads test results.
+
+### Breaking
+
+- **`dev-security` bumped from `0.9` to `0.10`, and `dev-fuzz` from
+  `0.9` to `0.10`.** Both are re-exported (`dev_tools::security`,
+  `dev_tools::fuzz`). Their check names now identify each finding
+  (`security::<source>::<id>::<crate>@<version>`,
+  `fuzz::<target>::<kind>::<id>`), so baselines that match on the old
+  names need updating once.
+
+### Fixed
+
+- 0.10.0 did not build against the current `dev-security`: its
+  requirement `0.9.3` rejected 0.10. The floors now match the released
+  sub-crates.
+- The `cargo test` producer dropped tests ignored with a reason
+  (`test x ... ignored, needs network`), and read result-shaped lines
+  anywhere in the output, so a failing test that printed
+  `test y ... ok` added a phantom passing check. Results are now read
+  only from the list after each `running N tests` header, up to
+  `failures:` or `test result:`, and `ignored, <reason>` counts as
+  ignored.
+
+### Changed
+
+- Every sub-crate, and `dev-report`, now comes from crates.io instead
+  of a sibling checkout, so a plain clone builds and CI tests what
+  users get. Floors: `dev-report` 0.9.9, `dev-fixtures` 0.9.6,
+  `dev-bench` 0.10.2, `dev-async` 0.9.6, `dev-stress` 0.9.6,
+  `dev-chaos` 0.9.6, `dev-coverage` 0.9.3, `dev-security` 0.10.1,
+  `dev-deps` 0.9.3, `dev-ci` 0.9.4, `dev-fuzz` 0.10.0, `dev-flaky`
+  0.9.3, `dev-mutate` 0.9.4.
+
+[0.11.0]: https://github.com/jamesgober/dev-tools/releases/tag/v0.11.0
+
 ## [0.10.0] - 2026-10-09
 
 Moves to `dev-bench` 0.10 and the reviewed sub-crate releases, adds

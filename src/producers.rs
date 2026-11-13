@@ -133,12 +133,42 @@ pub fn cargo_test_producer(
 }
 
 fn parse_cargo_test_output(text: &str) -> Vec<CheckResult> {
+    // libtest prints one result line per test, of the shape
+    //   test some::name ... ok
+    //   test some::name ... FAILED
+    //   test some::name ... ignored[, reason]
+    // in the list that follows each `running N tests` header. The list
+    // ends at `failures:` (where the captured output of failing tests is
+    // replayed) or at `test result:`. Lines outside a list are never read
+    // as results, so a test that prints `test x ... ok` cannot add a
+    // check of its own.
     let mut results = Vec::new();
-    for line in text.lines() {
-        // libtest emits one line per test, of the shape:
-        //   test some::name ... ok
-        //   test some::name ... FAILED
-        //   test some::name ... ignored
+    let mut in_list = false;
+    // Inside a failures block, until `test result:`. A `running N tests`
+    // line there is captured output, not a new list.
+    let mut in_failures = false;
+    for raw in text.lines() {
+        let line = raw.trim_end();
+        if line.starts_with("test result: ") {
+            in_list = false;
+            in_failures = false;
+            continue;
+        }
+        if in_failures {
+            continue;
+        }
+        if is_running_header(line) {
+            in_list = true;
+            continue;
+        }
+        if line == "failures:" {
+            in_list = false;
+            in_failures = true;
+            continue;
+        }
+        if !in_list {
+            continue;
+        }
         let rest = match line.strip_prefix("test ") {
             Some(r) => r,
             None => continue,
@@ -147,8 +177,8 @@ fn parse_cargo_test_output(text: &str) -> Vec<CheckResult> {
             Some(pair) => pair,
             None => continue,
         };
-        let trimmed_outcome = outcome.split_whitespace().next().unwrap_or("");
-        let check = match trimmed_outcome {
+        let word = outcome.split_whitespace().next().unwrap_or("");
+        let check = match word.trim_end_matches(',') {
             "ok" => CheckResult::pass(name),
             "FAILED" => CheckResult::fail(name, Severity::Error),
             "ignored" => CheckResult::skip(name),
@@ -157,6 +187,19 @@ fn parse_cargo_test_output(text: &str) -> Vec<CheckResult> {
         results.push(check);
     }
     results
+}
+
+/// `running 3 tests` / `running 1 test`.
+fn is_running_header(line: &str) -> bool {
+    let Some(rest) = line.strip_prefix("running ") else {
+        return false;
+    };
+    let Some((count, word)) = rest.split_once(' ') else {
+        return false;
+    };
+    !count.is_empty()
+        && count.bytes().all(|b| b.is_ascii_digit())
+        && matches!(word, "test" | "tests")
 }
 
 // ---------------------------------------------------------------------------
@@ -472,7 +515,7 @@ fn run_cargo(
     timeout: Option<Duration>,
 ) -> Result<CapturedOutput, Box<CheckResult>> {
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-    let mut cmd = Command::new(&cargo);
+    let mut cmd = Command::new(cargo);
     cmd.args(args);
     if let Some(dir) = workdir.as_ref() {
         cmd.current_dir(dir);
@@ -525,6 +568,39 @@ foo::baz
         assert_eq!(results[1].severity, Some(Severity::Error));
         assert_eq!(results[2].verdict, Verdict::Skip);
         assert_eq!(results[3].verdict, Verdict::Pass);
+    }
+
+    #[test]
+    fn ignored_with_reason_is_kept() {
+        let stdout = "running 2 tests\ntest needs_net ... ignored, needs network\ntest plain ... ignored\n\ntest result: ok. 0 passed; 0 failed; 2 ignored\n";
+        let results = parse_cargo_test_output(stdout);
+        let names: Vec<&str> = results.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, ["needs_net", "plain"]);
+        assert!(results.iter().all(|c| c.verdict == Verdict::Skip));
+    }
+
+    #[test]
+    fn captured_output_is_not_read_as_results() {
+        let stdout = "\
+running 2 tests
+test real_fail ... FAILED
+test real_pass ... ok
+
+failures:
+
+---- real_fail stdout ----
+test phantom_pass ... ok
+running 9 tests
+test phantom_fail ... FAILED
+
+failures:
+    real_fail
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored
+";
+        let results = parse_cargo_test_output(stdout);
+        let names: Vec<&str> = results.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, ["real_fail", "real_pass"]);
     }
 
     #[test]
@@ -623,7 +699,10 @@ test result: ok. 1 passed; 0 failed; 0 ignored
 
     #[test]
     fn exit_failure_names_the_subcommand_and_keeps_the_stderr_tail() {
-        let stderr: String = (1..=60).map(|i| format!("line {i}\n")).collect();
+        let mut stderr = String::new();
+        for i in 1..=60 {
+            stderr.push_str(&format!("line {i}\n"));
+        }
         let check = exit_failure("test", &captured(false, Some(101), &stderr));
         assert_eq!(check.name, "cargo::test");
         assert_eq!(check.verdict, Verdict::Fail);
