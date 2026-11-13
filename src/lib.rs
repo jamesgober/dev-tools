@@ -34,7 +34,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! dev-tools = "0.10"
+//! dev-tools = "0.11"
 //! ```
 //!
 //! ```rust

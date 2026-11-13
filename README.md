@@ -78,7 +78,7 @@ Pick features by what you want to verify:
 
 ```toml
 [dependencies]
-dev-tools = "0.10"
+dev-tools = "0.11"
 ```
 
 You get: `report` (always), `fixtures`, `bench`.
@@ -87,7 +87,7 @@ You get: `report` (always), `fixtures`, `bench`.
 
 ```toml
 [dependencies]
-dev-tools = { version = "0.10", default-features = false }
+dev-tools = { version = "0.11", default-features = false }
 ```
 
 You get: `report` only. No `fixtures`, no `bench`. Ideal when you
@@ -99,32 +99,32 @@ Pick exactly what you need. Examples:
 
 ```toml
 # Async-heavy service: schema + async helpers, no fixtures/bench.
-dev-tools = { version = "0.10", default-features = false, features = ["async"] }
+dev-tools = { version = "0.11", default-features = false, features = ["async"] }
 ```
 
 ```toml
 # Defaults plus async (additive).
-dev-tools = { version = "0.10", features = ["async"] }
+dev-tools = { version = "0.11", features = ["async"] }
 ```
 
 ```toml
 # Defaults plus chaos and stress.
-dev-tools = { version = "0.10", features = ["chaos", "stress"] }
+dev-tools = { version = "0.11", features = ["chaos", "stress"] }
 ```
 
 ```toml
 # Library shipping to production: coverage + security + deps + flaky.
-dev-tools = { version = "0.10", features = ["coverage", "security", "deps", "flaky"] }
+dev-tools = { version = "0.11", features = ["coverage", "security", "deps", "flaky"] }
 ```
 
 ```toml
 # Mutation-testing + fuzz harness with default test environments.
-dev-tools = { version = "0.10", features = ["mutate", "fuzz"] }
+dev-tools = { version = "0.11", features = ["mutate", "fuzz"] }
 ```
 
 ```toml
 # Everything (CI verification rigs, AI agents that drive the whole suite).
-dev-tools = { version = "0.10", features = ["full"] }
+dev-tools = { version = "0.11", features = ["full"] }
 ```
 
 ### Toggle features off
@@ -134,7 +134,7 @@ dev-tools = { version = "0.10", features = ["full"] }
 
 ```toml
 # Async + chaos, NO fixtures/bench.
-dev-tools = { version = "0.10", default-features = false, features = ["async", "chaos"] }
+dev-tools = { version = "0.11", default-features = false, features = ["async", "chaos"] }
 ```
 
 ## API map
@@ -416,7 +416,7 @@ cargo install --git https://github.com/jamesgober/dev-tools --features cli
 Verify the install:
 
 ```bash
-dev --version            # prints `dev 0.10.0`
+dev --version            # prints `dev 0.11.0`
 dev version              # prints the linked version of every component
 ```
 
@@ -574,11 +574,12 @@ APIs are expected to be near-final; minor adjustments may still
 happen ahead of `1.0`. The schema (`dev-report`) stays at
 `schema_version = 1` through this line.
 
-Each sub-crate dependency has a floor at the first release that
-exports `VERSION` (which `dev version` reads), and accepts any later
-compatible release, so sibling patch releases reach you without a new
-`dev-tools` release. `dev-tools` 0.10 moved to `dev-bench` 0.10,
-which is why the umbrella's minor version changed.
+Each sub-crate dependency has a floor at the sub-crate release this
+version was tested with, and accepts any later compatible release, so
+sibling patch releases reach you without a new `dev-tools` release.
+Every sub-crate comes from crates.io. `dev-tools` 0.11 moved to
+`dev-security` 0.10 and `dev-fuzz` 0.10, which is why the umbrella's
+minor version changed.
 
 ## Roadmap
 
